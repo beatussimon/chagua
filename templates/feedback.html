@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Feedback{% endblock %}
+{% block content %}
+    <h1 class="text-4xl font-extrabold mb-8 animate-fade-in">Feedback & FAQs</h1>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <h2 class="text-2xl font-semibold mb-4">Reviews</h2>
+            {% for review in reviews %}
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-lg mb-2">
+                    <p>{{ review.rating }}★ - {% if review.is_anonymous %}Anonymous{% else %}{{ review.reviewer.username }}{% endif %}</p>
+                    <p>{{ review.comment }}</p>
+                    <p>Likes: {{ review.likes }}</p>
+                    {% for media in review.media.all %}
+                        <img src="{{ media.file.url }}" alt="Review Media" class="w-16 h-16 object-cover inline-block m-1">
+                    {% endfor %}
+                </div>
+            {% empty %}
+                <p>No reviews yet.</p>
+            {% endfor %}
+        </div>
+        <div>
+            <h2 class="text-2xl font-semibold mb-4">FAQs</h2>
+            <a href="{% url 'create_faq' %}" class="inline-block bg-blue-500 text-white px-4 py-2 rounded-lg mb-4 hover:bg-blue-600 transition-colors">Add FAQ</a>
+            {% for faq in faqs %}
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-lg mb-2">
+                    <p class="font-bold">{{ faq.question }}</p>
+                    <p>{{ faq.answer }}</p>
+                    <p>Votes: {{ faq.helpful_votes }}</p>
+                </div>
+            {% empty %}
+                <p>No FAQs yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

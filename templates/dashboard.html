@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+    <h1 class="text-4xl font-extrabold mb-8 animate-fade-in">Welcome, {{ user.username }}</h1>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <section class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
+            <h2 class="text-2xl font-semibold mb-4">Your Profile</h2>
+            <div class="flex items-center space-x-4 mb-4">
+                {% if user.profile_picture %}
+                    <img src="{{ user.profile_picture.url }}" alt="Profile Picture" class="w-16 h-16 rounded-full object-cover">
+                {% else %}
+                    <div class="w-16 h-16 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-2xl font-bold">{{ user.username|first }}</div>
+                {% endif %}
+                <div>
+                    <p><span class="font-medium">Role:</span> {{ user.role|title }}</p>
+                    <p><span class="font-medium">Verified:</span> {% if user.is_verified %}<span class="text-green-500">Yes</span>{% else %}<span class="text-red-500">No</span>{% endif %}</p>
+                    <p><span class="font-medium">Trust Badge:</span> {% if user.trust_badge %}<span class="text-blue-500">Earned</span>{% else %}Not yet{% endif %}</p>
+                    {% if user.role == 'business' and user.business_profile %}
+                        <p><span class="font-medium">Business:</span> {{ user.business_profile.business_name }}</p>
+                        <p><span class="font-medium">Site Verified:</span> {% if user.business_profile.site_visit_verified %}<span class="text-green-500">Yes</span>{% else %}No{% endif %}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="space-x-2">
+                <a href="{% url 'verify_user' %}" class="inline-block bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">Verify Account</a>
+                <a href="{% url 'update_profile_picture' %}" class="inline-block bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">Update Picture</a>
+            </div>
+        </section>
+        <section class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
+            <h2 class="text-2xl font-semibold mb-4">Activity Stats</h2>
+            <p><span class="font-medium">Rentals:</span> {{ stats.rentals }}</p>
+            <p><span class="font-medium">Reviews:</span> {{ stats.reviews }}</p>
+            <p><span class="font-medium">Messages:</span> {{ stats.messages }}</p>
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Last active: {{ user.last_activity|timesince }} ago</p>
+        </section>
+        <section class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
+            <h2 class="text-2xl font-semibold mb-4">Quick Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'rentals_list' %}" class="block bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 p-3 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">Browse Rentals</a>
+                <a href="{% url 'messaging' %}" class="block bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 p-3 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors">Check Messages</a>
+                <a href="{% url 'feedback' %}" class="block bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 p-3 rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-800 transition-colors">View Feedback</a>
+            </div>
+        </section>
+    </div>
+{% endblock %}
