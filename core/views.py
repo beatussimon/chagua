@@ -105,9 +105,14 @@ def rental_detail(request, rental_id):
                 review.reviewer = request.user
                 review.rental = rental
                 review.save()
-                for file in request.FILES.getlist('media_files'):
-                    media = Media.objects.create(file=file, uploaded_by=request.user)
-                    review.media.add(media)
+                # Handle multiple file uploads
+                if 'media_files' in request.FILES:
+                    for file in request.FILES.getlist('media_files'):
+                        if file.size > 5 * 1024 * 1024:  # 5MB limit
+                            messages.error(request, _("File too large. Max 5MB."))
+                            continue
+                        media = Media.objects.create(file=file, uploaded_by=request.user)
+                        review.media.add(media)
                 messages.success(request, _("Review posted!"))
         elif 'comment' in request.POST:
             comment_form = CommentForm(request.POST)
@@ -280,56 +285,48 @@ def like_comment(request, comment_id):
     return redirect('rental_detail', rental_id=comment.rental.id)
 
 @login_required
-def messaging(request, group_id=None):
-    messages_received = Message.objects.filter(recipient=request.user).order_by('-timestamp')
-    messages_sent = Message.objects.filter(sender=request.user).order_by('-timestamp')
-    group = get_object_or_404(MessageGroup, id=group_id) if group_id else None
-    if group:
-        messages_received = messages_received.filter(group=group)
-        messages_sent = messages_sent.filter(group=group)
+def messaging(request):
+    recipient_id = request.GET.get('recipient')
+    groups = MessageGroup.objects.filter(participants=request.user)
     users = User.objects.exclude(id=request.user.id)
-    groups = request.user.message_groups.all()
-    templates = MessageTemplate.objects.filter(user=request.user)
+    current_group = None
+    sent = received = []
+
+    if recipient_id:
+        recipient = get_object_or_404(User, id=recipient_id)
+        sent = Message.objects.filter(sender=request.user, recipient=recipient).order_by('timestamp')
+        received = Message.objects.filter(sender=recipient, recipient=request.user).order_by('timestamp')
+    elif 'group_id' in request.GET:
+        current_group = get_object_or_404(MessageGroup, id=request.GET['group_id'], participants=request.user)
+        sent = Message.objects.filter(sender=request.user, group=current_group).order_by('timestamp')
+        received = Message.objects.filter(group=current_group).exclude(sender=request.user).order_by('timestamp')
 
     if request.method == 'POST':
         form = MessageForm(request.POST, request.FILES)
         if form.is_valid():
-            recipient_id = request.POST.get('recipient_id')
-            group_id = request.POST.get('group_id')
-            schedule = request.POST.get('schedule')
+            message = form.save(commit=False)
+            message.sender = request.user
             if recipient_id:
-                recipient = get_object_or_404(User, id=recipient_id)
-                message = form.save(commit=False)
-                message.sender = request.user
                 message.recipient = recipient
-                message.save()
-                if schedule:
-                    ScheduledMessage.objects.create(message=message, send_at=schedule)
-                else:
-                    Notification.objects.create(user=recipient, content=f"New message from {request.user.username}", link=reverse('messaging'))
-                messages.success(request, _("Message sent!"))
-            elif group_id:
-                group = get_object_or_404(MessageGroup, id=group_id)
-                message = form.save(commit=False)
-                message.sender = request.user
-                message.group = group
-                message.save()
-                if schedule:
-                    ScheduledMessage.objects.create(message=message, send_at=schedule)
-                else:
-                    for participant in group.participants.exclude(id=request.user.id):
-                        Notification.objects.create(user=participant, content=f"New message in {group.name}", link=reverse('messaging_group', args=[group.id]))
-                messages.success(request, _("Message sent to group!"))
-            elif 'template' in request.POST:
-                MessageTemplate.objects.create(user=request.user, content=form.cleaned_data['content'])
-                messages.success(request, _("Template saved!"))
+            elif current_group:
+                message.group = current_group
+            schedule = request.POST.get('schedule')
+            if schedule:
+                message.timestamp = timezone.datetime.fromisoformat(schedule)
+                message.is_scheduled = True
+            message.save()
+            if 'template' in request.POST:
+                MessageTemplate.objects.create(user=request.user, content=message.content)
+            messages.success(request, _("Message sent!"))
+            return redirect(request.path_info + ('?recipient=' + recipient_id if recipient_id else '?group_id=' + str(current_group.id)))
+    else:
+        form = MessageForm()
 
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        messages_list = messages_received | messages_sent
-        return JsonResponse({'messages': [{'content': m.content, 'sender': m.sender.username, 'timestamp': m.timestamp.isoformat()} for m in messages_list.order_by('timestamp')]})
+        return JsonResponse({'sent': [m.content for m in sent], 'received': [m.content for m in received]})
     return render(request, 'core/messaging.html', {
-        'sent': messages_sent, 'received': messages_received, 'users': users, 'form': MessageForm(),
-        'groups': groups, 'current_group': group, 'templates': templates
+        'groups': groups, 'users': users, 'sent': sent, 'received': received, 'form': form,
+        'templates': MessageTemplate.objects.filter(user=request.user), 'current_group': current_group
     })
 
 @login_required

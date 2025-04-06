@@ -1,15 +1,14 @@
-from django.http import HttpResponseTooManyRequests
+from django.http import HttpResponse
 from django.core.cache import cache
+from django.utils.deprecation import MiddlewareMixin
 
-class RateLimitMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        if request.user.is_authenticated:
-            key = f"rate_limit_{request.user.id}"
-            requests = cache.get(key, 0)
-            if requests > 100:  # 100 requests per minute
-                return HttpResponseTooManyRequests("Too many requests.")
-            cache.set(key, requests + 1, 60)
-        return self.get_response(request)
+class RateLimitMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        ip = request.META.get('REMOTE_ADDR')
+        key = f"rate-limit:{ip}"
+        requests = cache.get(key, 0)
+        if requests > 100:  # Example: 100 requests per minute
+            # Use HttpResponse with status 429 instead of HttpResponseTooManyRequests
+            return HttpResponse("Too Many Requests", status=429)
+        cache.set(key, requests + 1, 60)  # Reset after 60 seconds
+        return None
