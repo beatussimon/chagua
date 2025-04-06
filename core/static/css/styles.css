@@ -1,17 +1,17 @@
-/* styles.css - God Level Final COMPLETE (Robust Menu Background Fix) */
+/* styles.css - God Level Final COMPLETE (Robust Menu Background + Button + Filter Styles) */
 
 :root {
-    --bg-light: #f7fafc;
-    --bg-dark: #1a202c;
-    --text-light: #2d3748;
-    --text-dark: #e2e8f0;
+    --bg-light: #f7fafc; /* Tailwind gray-50 */
+    --bg-dark: #1a202c;  /* Tailwind gray-900 */
+    --text-light: #2d3748; /* Tailwind gray-800 */
+    --text-dark: #e2e8f0;  /* Tailwind gray-200 */
     --card-light: #ffffff;
-    --card-dark: #2d3748;
+    --card-dark: #2d3748; /* Darker card */
     --header-light: #ffffff;
-    --header-dark: #1f2937;
+    --header-dark: #1f2937; /* Darker header */
     --border-light: #e2e8f0;
     --border-dark: #4a5568;
-    --primary: #ff5a5f;
+    --primary: #ff5a5f; /* Your primary color */
     --primary-hover: #e04e52;
     --text-secondary-light: #718096;
     --text-secondary-dark: #a0aec0;
@@ -36,104 +36,72 @@ body.dark {
     color-scheme: dark;
 }
 
-/* Header, Cards, Buttons, etc. (Keep previous styles) */
-header.navbar { background-color: var(--header-light); border-bottom: 1px solid var(--border-light); /* ... other header styles ... */ }
+/* Header & Navbars Styling */
+header.navbar { background-color: var(--header-light); border-bottom: 1px solid var(--border-light); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03); padding: 0.75rem 1rem; position: sticky; top: 0; z-index: 40; }
 body.dark header.navbar { background-color: var(--header-dark); border-bottom-color: var(--border-dark); }
-/* ... other styles for nav links, secondary nav, card, button, map, comment, search ... */
-.secondary-nav { background-color: #f9fafb; border-bottom: 1px solid var(--border-light); /* ... */ }
-body.dark .secondary-nav { background-color: #2d3748; border-bottom-color: var(--border-dark); /* ... */ }
-.card { background: var(--card-light); /* ... */ }
-body.dark .card { background: var(--card-dark); /* ... */ }
-button, .button { background: var(--primary); /* ... */ }
-button:hover, .button:hover { background: var(--primary-hover); }
+header.navbar a, header.navbar button { color: var(--text-light); transition: color 0.2s ease; }
+body.dark header.navbar a, body.dark header.navbar button { color: var(--text-dark); }
+header.navbar a:hover, header.navbar button:hover { color: var(--primary); }
+
+.secondary-nav { background-color: #f9fafb; border-bottom: 1px solid var(--border-light); color: var(--text-secondary-light); padding: 0.5rem 1rem; text-align: center; }
+body.dark .secondary-nav { background-color: #2d3748; border-bottom-color: var(--border-dark); color: var(--text-secondary-dark); }
+.secondary-nav a { color: inherit; margin: 0 0.75rem; }
+.secondary-nav a:hover { color: var(--primary); }
+
+/* Content Area & Cards */
+main { flex-grow: 1; padding: 1rem; }
+@media (min-width: 768px) { main { padding: 1.5rem; } }
+.card { background: var(--card-light); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-light); }
+body.dark .card { background: var(--card-dark); border-color: var(--border-dark); }
+
+/* Robust Button Styles */
+button, .button { display: inline-block; padding: 0.5rem 1rem; font-weight: 500; text-align: center; text-decoration: none !important; white-space: nowrap; cursor: pointer; border-radius: 0.375rem; border: 1px solid transparent; transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; background-color: var(--primary); color: white; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+button:hover, .button:hover { background-color: var(--primary-hover); color: white; text-decoration: none !important; }
+button:focus, .button:focus { outline: none; box-shadow: 0 0 0 2px var(--card-light), 0 0 0 4px var(--primary); }
+body.dark button:focus, body.dark .button:focus { box-shadow: 0 0 0 2px var(--card-dark), 0 0 0 4px var(--primary); }
+button.text-button { background: none; color: var(--primary); padding: 0.25rem; border-radius: 0; font-weight: normal; box-shadow: none; border: none; }
+button.text-button:hover { background: none; text-decoration: underline; color: var(--primary-hover); }
+button.text-button:focus { box-shadow: none; outline: 1px dotted var(--primary); outline-offset: 2px; }
+
+/* Map & Comments */
 .map { height: 300px; width: 100%; border-radius: 0.5rem; }
 .threaded-comment { margin-left: 1rem; border-left: 2px solid var(--border-light); padding-left: 0.5rem; margin-top: 0.5rem; }
 body.dark .threaded-comment { border-left-color: var(--border-dark); }
-.navbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem; }
+
+/* Navbar Layout & Search */
+.navbar { display: flex; justify-content: space-between; align-items: center; }
+.navbar .search-bar { flex-grow: 1; margin: 0 1rem; max-width: 600px; }
 .navbar .search-bar input { width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.375rem; border: 1px solid var(--border-light); background-color: var(--bg-light); color: var(--text-light); }
 body.dark .navbar .search-bar input { border-color: var(--border-dark); background-color: var(--bg-dark); color: var(--text-dark); }
+.navbar .search-bar input:focus { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none; }
+
+/* Desktop & Mobile Navigation Handling */
 .nav-menu { display: none; align-items: center; gap: 0.5rem; }
-.hamburger { display: none; /* ... */ }
+.hamburger { display: none; background: none; border: none; padding: 0.5rem; margin: -0.5rem; cursor: pointer; color: var(--text-light); }
+body.dark .hamburger { color: var(--text-dark); }
 
-
-/* --- ROBUST Full Screen Hamburger Menu Styles --- */
-#hamburger-menu {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 100vw;
-    height: 100vh;
-    /* Apply background using explicit variable for menu */
-    background-color: var(--menu-bg-light);
-    color: var(--text-light); /* Set text color for light mode */
-    z-index: 50;
-    transition: transform 0.3s ease-in-out;
-    transform: translateX(100%);
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid var(--border-light);
-    visibility: hidden;
-}
-body.dark #hamburger-menu {
-    /* Explicitly set background and text color for dark mode */
-    background-color: var(--menu-bg-dark);
-    color: var(--text-dark);
-    border-left-color: var(--border-dark);
-}
-
-#hamburger-menu.open {
-    transform: translateX(0);
-    visibility: visible;
-}
-
-/* Inner sections should inherit or have explicit background if needed */
-#hamburger-menu .menu-header {
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
-    display: flex; justify-content: space-between; align-items: center;
-    flex-shrink: 0;
-    /* Inherits background from #hamburger-menu */
-}
-#hamburger-menu .menu-nav {
-    padding: 1rem;
-    flex-grow: 1;
-    overflow-y: auto;
-     /* Inherits background from #hamburger-menu */
-}
-#hamburger-menu .menu-footer {
-    padding: 1rem; border-top: 1px solid var(--border-color); flex-shrink: 0;
-    /* Optional: Slightly different bg for footer */
-    background-color: var(--bg-light);
-}
-body.dark #hamburger-menu .menu-footer {
-    background-color: var(--bg-dark);
-}
-
-/* Ensure inner links/buttons use correct theme colors */
-#hamburger-menu .menu-header #close-hamburger { color: var(--text-primary); /* Match menu text */ }
-body.dark #hamburger-menu .menu-header #close-hamburger { color: var(--text-dark); }
+/* Perfected Full Screen Hamburger Menu Styles */
+#hamburger-menu { position: fixed; top: 0; right: 0; width: 100vw; height: 100vh; background-color: var(--menu-bg-light); color: var(--text-light); z-index: 50; transition: transform 0.3s ease-in-out; transform: translateX(100%); display: flex; flex-direction: column; border-left: 1px solid var(--border-light); visibility: hidden; }
+body.dark #hamburger-menu { background-color: var(--menu-bg-dark); color: var(--text-dark); border-left-color: var(--border-dark); }
+#hamburger-menu.open { transform: translateX(0); visibility: visible; }
+#hamburger-menu .menu-header { padding: 1rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+#hamburger-menu .menu-header #close-hamburger { background: none; border: none; padding: 0.5rem; margin: -0.5rem; color: var(--text-primary); }
 #hamburger-menu .menu-header #close-hamburger:hover { color: var(--primary); }
-
-.menu-section-header { font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); /* Use secondary color */ margin-top: 1.25rem; margin-bottom: 0.5rem; font-weight: 600; letter-spacing: 0.05em; }
+#hamburger-menu .menu-nav { padding: 1rem; flex-grow: 1; overflow-y: auto; }
+.menu-section-header { font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); margin-top: 1.25rem; margin-bottom: 0.5rem; font-weight: 600; letter-spacing: 0.05em; }
 .menu-section-header:first-child { margin-top: 0; }
 #hamburger-menu .menu-nav a { display: block; padding: 0.75rem 0.5rem; font-size: 1.125rem; color: var(--text-primary); transition: color 0.2s, background-color 0.2s; border-radius: 4px; }
 #hamburger-menu .menu-nav a:hover { color: var(--primary); background-color: rgba(0,0,0,0.03); text-decoration: none; }
 body.dark #hamburger-menu .menu-nav a:hover { background-color: rgba(255,255,255,0.05); }
 .menu-divider { border-color: var(--border-color); margin: 1rem 0; }
+#hamburger-menu .menu-footer { padding: 1rem; border-top: 1px solid var(--border-color); flex-shrink: 0; background-color: var(--bg-light); }
+body.dark #hamburger-menu .menu-footer { background-color: var(--bg-dark); }
 
-/* --- Responsiveness --- */
-@media (min-width: 768px) { /* md breakpoint */
-    .nav-menu { display: flex; }
-    .hamburger { display: none; }
-    #hamburger-menu { display: none !important; }
-}
-@media (max-width: 767.98px) { /* Below md breakpoint */
-    .navbar { flex-wrap: wrap; }
-    .hamburger { display: block; }
-    .navbar .search-bar { order: 3; width: 100%; margin: 0.5rem 0 0 0; }
-}
+/* Responsiveness */
+@media (min-width: 768px) { .nav-menu { display: flex; } .hamburger { display: none; } #hamburger-menu { display: none !important; } }
+@media (max-width: 767.98px) { .navbar { flex-wrap: wrap; } .hamburger { display: block; } .navbar .search-bar { order: 3; width: 100%; margin: 0.5rem 0 0 0; } }
 
-/* --- Dropdown Styles --- */
+/* Dropdown Styles */
 .dropdown { position: relative; display: inline-block; }
 .dropdown-content { display: none; position: absolute; background-color: var(--card-light); min-width: 160px; box-shadow: 0 8px 16px rgba(0,0,0,0.15); z-index: 10; border: 1px solid var(--border-light); border-radius: 0.375rem; margin-top: 0.25rem; }
 body.dark .dropdown-content { background-color: var(--card-dark); border-color: var(--border-dark); }
@@ -143,13 +111,39 @@ body.dark .dropdown-content a { color: var(--text-dark); }
 .dropdown-content a:hover { background-color: #f9fafb; color: var(--primary); }
 body.dark .dropdown-content a:hover { background-color: #4a5568; }
 
-/* --- Badge Styles --- */
+/* Badge Styles */
 .badge { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; margin-left: 0.25rem; vertical-align: middle; border: 1px solid rgba(0,0,0,0.1); }
 body.dark .badge { border-color: rgba(255,255,255,0.2); }
 .badge.blue { background: #4299e1; }
 .badge.green { background: #48bb78; }
 .badge.gold { background: #ecc94b; }
 
-/* --- Footer --- */
+/* Footer */
 footer { background-color: var(--bg-light); color: var(--text-secondary); padding: 1.5rem; text-align: center; font-size: 0.875rem; border-top: 1px solid var(--border-light); margin-top: auto; }
 body.dark footer { background-color: var(--bg-dark); color: var(--text-secondary-dark); border-top-color: var(--border-dark); }
+
+/* Input focus styling */
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none; }
+
+/* Utility for visually hidden but accessible */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
+
+/* --- Collapsible Filter Section Styles --- */
+#filter-section {
+    transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out, border 0.4s ease-in-out, margin 0.4s ease-in-out;
+    overflow: hidden;
+    max-height: 0; /* Start collapsed */
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    margin-bottom: 0;
+}
+
+#filter-section[data-open="true"] {
+   max-height: 1000px; /* Adjust if form is very tall */
+   /* Re-apply padding, border, margin when open */
+   padding-top: 1rem;
+   padding-bottom: 1rem;
+   border-width: 1px;
+   margin-bottom: 1.5rem; /* Tailwind mb-6 */
+}
