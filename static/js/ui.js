@@ -4,11 +4,18 @@ function toggleTheme() {
 }
 
 function showModal(id) {
-    document.getElementById(id).classList.remove('hidden');
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.remove('hidden');
 }
 
 function hideModal(id) {
-    document.getElementById(id).classList.add('hidden');
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('hidden');
+}
+
+function filterMessages(filter) {
+    console.log(`Filtering by: ${filter}`);
+    // Placeholder for future client-side filtering if needed
 }
 
 window.onload = () => {
@@ -17,7 +24,7 @@ window.onload = () => {
         el.addEventListener('mouseover', () => {
             const tooltip = document.createElement('div');
             tooltip.className = 'absolute bg-gray-800 text-white p-2 rounded text-sm shadow-lg z-10';
-            tooltip.innerText = el.dataset.tooltip;
+            tooltip.innerText = el.dataset.tooltip || 'No tooltip'; // Fallback for missing data-tooltip
             document.body.appendChild(tooltip);
             const rect = el.getBoundingClientRect();
             tooltip.style.top = `${rect.top - 40}px`;
