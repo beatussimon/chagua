@@ -1,69 +1,132 @@
 {% load i18n static %}
 <!DOCTYPE html>
-<html lang="{% if request.LANGUAGE_CODE %}{{ request.LANGUAGE_CODE }}{% else %}en{% endif %}">
+<html lang="{{ LANGUAGE_CODE|default:'en' }}" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chagua - {% block title %}{% endblock %}</title>
+    <title>{% block title %}{% trans "Chagua" %}{% endblock %} - Chagua</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
-    <script src="{% static 'js/ui.js' %}" defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+    <meta name="theme-color" content="#ff5a5f">
+    {% block extra_head %}{% endblock %}
 </head>
-<body data-username="{{ user.username }}" data-theme="{{ user.theme_preference }}">
-    <header class="navbar sticky top-0 z-20">
-        <a href="{% url 'dashboard' %}" class="text-3xl font-bold">Chagua</a>
-        <div class="search-bar">
-            <form method="get" action="{% url 'dashboard' %}">
-                <input type="text" name="q" placeholder="{% trans 'Search rentals or packages...' %}" value="{{ request.GET.q }}" class="focus:outline-none">
-            </form>
-        </div>
-        <button class="hamburger">☰</button>
-        <nav class="nav-menu">
-            <button onclick="toggleTheme()">🌙</button>
-            <a href="{% url 'dashboard' %}">{% trans "Home" %}</a>
-            <a href="{% url 'messaging' %}">{% trans "Messages" %} {% if notifications %}<span class="bg-red-500 text-white rounded-full px-2">{{ notifications.count }}</span>{% endif %}</a>
-            <a href="{% url 'feedback' %}">{% trans "Feedback" %}</a>
-            {% if user.is_authenticated %}
-                <div class="dropdown relative">
-                    <a href="{% url 'profile' user.username %}">{{ user.username }}{% if user.trust_badge %}<span class="badge green"></span>{% endif %}{% if user.badge_color %}<span class="badge {{ user.badge_color }}"></span>{% endif %}</a>
-                    <div class="dropdown-content">
-                        <a href="{% url 'profile' user.username %}">{% trans "View Profile" %}</a>
-                        <a href="{% url 'rental_create' %}">{% trans "Post Rental" %}</a>
-                        <a href="{% url 'service_package_create' %}">{% trans "Create Package" %}</a>
-                        <a href="{% url 'create_group' %}">{% trans "Create Message Group" %}</a>
-                        <a href="{% url 'subscribe' %}">{% trans "Subscribe" %}</a>
+<body class="flex flex-col min-h-screen" data-username="{{ user.username|default:'' }}" {% block body_data %}{% endblock %}>
+    {% csrf_token %}
+
+    <header class="navbar sticky top-0 z-40 px-4 py-3" role="banner">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{% url 'dashboard' %}" class="text-2xl font-bold text-primary-accent" aria-label="Chagua Home">Chagua</a>
+
+            <div class="search-bar hidden md:block mx-4 flex-grow max-w-xl">
+                <form method="get" action="{% url 'dashboard' %}" class="relative">
+                    <input type="search" name="q" placeholder="{% trans 'Search rentals...' %}" value="{{ request.GET.q }}" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-accent" aria-label="Search">
+                </form>
+            </div>
+
+            <button id="hamburger-toggle" class="hamburger focus:outline-none text-primary-accent" aria-label="Toggle Menu" aria-expanded="false">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+            </button>
+
+            <nav class="nav-menu hidden md:flex items-center space-x-4 lg:space-x-6" role="navigation">
+                <a href="{% url 'dashboard' %}" data-tooltip="Home">{% trans "Home" %}</a>
+                <a href="{% url 'feedback' %}" data-tooltip="Feedback">{% trans "Feedback" %}</a>
+
+                {% if user.is_authenticated %}
+                    <a href="{% url 'messaging' %}" class="relative" data-tooltip="Messages">
+                        {% trans "Messages" %}
+                        {% with unread_notifications=notifications.count %}
+                        {% if unread_notifications > 0 %}
+                            <span class="absolute -top-1 -right-1 block h-4 w-4 text-xs flex items-center justify-center rounded-full ring-2 ring-white bg-red-500 text-white">{{ unread_notifications }}</span>
+                        {% endif %}
+                        {% endwith %}
+                    </a>
+                    <div class="dropdown relative">
+                        <button class="flex items-center focus:outline-none" aria-haspopup="true" aria-label="User Menu">
+                             {% if user.profile_picture %}
+                                <img src="{{ user.profile_picture.url }}" alt="" class="w-8 h-8 rounded-full border">
+                            {% else %}
+                                <span class="w-8 h-8 rounded-full bg-gray-500 text-white flex items-center justify-center border">{{ user.username.0|upper }}</span>
+                            {% endif %}
+                            <span class="ml-2 hidden lg:inline">{{ user.username }}</span>
+                        </button>
+                        <div class="dropdown-content absolute hidden mt-1 right-0 w-48">
+                             <a href="{% url 'profile' user.username %}" class="block px-4 py-2">{% trans "Profile" %}</a>
+                             <a href="{% url 'rental_create' %}" class="block px-4 py-2">{% trans "Post Rental" %}</a>
+                             {% if user.is_superuser or user.is_custom_admin %}
+                                 <a href="{% url 'admin_dashboard' %}" class="block px-4 py-2">{% trans "Admin" %}</a>
+                             {% endif %}
+                             <a href="{% url 'logout' %}" class="block px-4 py-2 text-red-600 hover:bg-red-100">{% trans "Logout" %}</a>
+                        </div>
                     </div>
-                </div>
-                {% if user.is_superuser or user.is_custom_admin %}
-                    <a href="{% url 'admin_dashboard' %}">{% trans "Admin" %}</a>
+                    <button onclick="toggleTheme()" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700" data-tooltip="Toggle Theme">🌙</button>
+                {% else %}
+                    <a href="{% url 'login' %}" data-tooltip="Login">{% trans "Login" %}</a>
+                    <a href="{% url 'register' %}" class="button" data-tooltip="Register">{% trans "Sign Up" %}</a>
                 {% endif %}
-                <a href="{% url 'logout' %}">{% trans "Logout" %}</a>
+            </nav>
+        </div>
+
+        <div class="search-bar md:hidden p-4 border-t border-gray-200 dark:border-gray-700">
+             <form method="get" action="{% url 'dashboard' %}" class="relative">
+                 <input type="search" name="q" placeholder="{% trans 'Search rentals...' %}" value="{{ request.GET.q }}" class="w-full p-2 border rounded-lg" aria-label="Search rentals">
+             </form>
+         </div>
+    </header>
+
+    <div id="hamburger-menu" class="fixed inset-0 z-50 md:hidden" aria-hidden="true">
+         <div class="flex justify-between p-4 border-b border-gray-700 dark:border-gray-600">
+            <span class="text-xl font-bold">{% trans "Menu" %}</span>
+            <button id="close-hamburger" class="focus:outline-none text-primary-accent" aria-label="Close Menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <nav class="p-4 space-y-4 flex-grow overflow-y-auto" role="navigation">
+            {% if user.is_authenticated %}
+                <div class="mb-4 pb-4 border-b border-gray-700 dark:border-gray-600">
+                     <a href="{% url 'profile' user.username %}" class="flex items-center space-x-2 text-lg font-semibold hover:text-primary-accent">
+                         <span>{{ user.username }}</span>
+                     </a>
+                </div>
+                <a href="{% url 'messaging' %}" class="block text-lg hover:text-primary-accent">{% trans "Messages" %}</a>
+                <a href="{% url 'rental_create' %}" class="block text-lg hover:text-primary-accent">{% trans "Post Rental" %}</a>
+                {% if user.is_superuser or user.is_custom_admin %}...{% endif %}
+            {% endif %}
+             <a href="{% url 'dashboard' %}" class="block text-lg hover:text-primary-accent">{% trans "Home" %}</a>
+             <a href="{% url 'feedback' %}" class="block text-lg hover:text-primary-accent">{% trans "Feedback & FAQ" %}</a>
+             <a href="#" class="block text-lg hover:text-primary-accent">{% trans "Contact Us" %}</a>
+            <hr class="my-4 border-gray-700 dark:border-gray-600">
+            {% if user.is_authenticated %}
+                <a href="{% url 'logout' %}" class="block text-lg text-red-500 hover:text-red-400">{% trans "Logout" %}</a>
             {% else %}
-                <a href="{% url 'login' %}">{% trans "Login" %}</a>
-                <a href="{% url 'register' %}">{% trans "Register" %}</a>
+                <a href="{% url 'login' %}" class="block text-lg hover:text-primary-accent">{% trans "Login" %}</a>
+                <a href="{% url 'register' %}" class="block text-lg hover:text-primary-accent">{% trans "Register" %}</a>
             {% endif %}
         </nav>
-    </header>
-    <div class="secondary-nav flex justify-around items-center text-sm">
-        <a href="{% url 'feedback' %}" class="hover:text-primary">{% trans "FAQ" %}</a>
-        <a href="{% url 'feedback' %}" class="hover:text-primary">{% trans "Feedback" %}</a>
-        <a href="#" class="hover:text-primary">{% trans "Contact" %}</a>
+        <div class="p-4 border-t border-gray-700 dark:border-gray-600 mt-auto">
+            <button onclick="toggleTheme()" class="button w-full">{% trans "Toggle Theme" %}</button>
+        </div>
     </div>
-    <main class="container mx-auto p-6">
-        {% if messages %}
-            <div class="mb-6 space-y-2">
-                {% for message in messages %}
-                    <div class="p-4 rounded {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+
+    <div class="secondary-nav flex justify-center items-center text-sm py-2 space-x-6 border-b">
+         <a href="{% url 'feedback' %}" class="hover:text-primary-accent">{% trans "FAQ" %}</a>
+         <a href="{% url 'feedback' %}" class="hover:text-primary-accent">{% trans "Feedback" %}</a>
+         <a href="#" class="hover:text-primary-accent">{% trans "Contact Us" %}</a>
+     </div>
+
+    <main class="flex-grow container mx-auto p-4 md:p-6" id="content-wrapper" role="main">
+        {% if messages %}...{% endif %}
         {% block content %}{% endblock %}
     </main>
+
+    <footer class="bg-gray-100 dark:bg-gray-800 text-center p-4 text-sm border-t">
+        {% trans "© 2025 Chagua. All rights reserved." %}
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script src="{% static 'js/ui.js' %}"></script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

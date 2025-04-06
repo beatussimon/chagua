@@ -1,91 +1,142 @@
+// ui.js - Final Final Final (Aligned with User's OG CSS & JS)
+
+/**
+ * Toggles theme between light/dark based on body class, saves to localStorage.
+ * Based on user's provided function structure.
+ */
 function toggleTheme() {
     document.body.classList.toggle('dark');
     const theme = document.body.classList.contains('dark') ? 'dark' : 'light';
-    localStorage.setItem('theme', theme);
-    fetch('/profile/' + document.body.dataset.username + '/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: `theme=${theme}`
-    });
+    localStorage.setItem('theme', theme); // Save the resulting theme state
+
+    // Optional: Persist explicit choice to backend (if needed)
+    // const username = document.body.dataset.username;
+    // const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+    // if (username && csrfToken) { fetch(...) }
 }
 
+/**
+ * Initializes the theme on page load based *only* on localStorage.
+ * (Removed system detection and backend check to strictly follow user's JS)
+ */
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('theme'); // Only check localStorage
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark');
+    } else {
+        document.body.classList.remove('dark'); // Default to light if not 'dark'
+    }
+    // Note: No 'auto' logic here, strictly follows user's original JS intent.
+    // The theme <select> dropdowns were removed from HTML as they don't fit this simple toggle.
+}
+
+/**
+ * Toggles the visibility of the full-screen mobile menu.
+ * Uses the #hamburger-menu and .open class logic for the overlay effect.
+ */
+function toggleMenu() { // This function manages the full-screen menu
+    const menu = document.getElementById('hamburger-menu');
+    const toggleButton = document.getElementById('hamburger-toggle');
+    if (menu && toggleButton) {
+        const isOpen = menu.classList.toggle('open');
+        // Add aria attributes for accessibility
+        toggleButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        menu.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    }
+}
+
+/**
+ * Shows a modal dialog. (User's function)
+ */
 function showModal(id) {
     const modal = document.getElementById(id);
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden'); // Assuming Tailwind's hidden class
+        modal.setAttribute('aria-hidden', 'false');
+        // Focus management for accessibility
+        const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable) focusable.focus();
+    }
 }
 
+/**
+ * Hides a modal dialog. (User's function)
+ */
 function hideModal(id) {
     const modal = document.getElementById(id);
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.add('hidden'); // Assuming Tailwind's hidden class
+        modal.setAttribute('aria-hidden', 'true');
+    }
 }
 
+/**
+ * Initializes a Leaflet map. (User's function)
+ */
 function initMap(lat, lng, elementId) {
-    const map = L.map(elementId).setView([lat || 0, lng || 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-    L.marker([lat || 0, lng || 0]).addTo(map);
+    if (typeof L === 'undefined') { console.error("Leaflet not loaded."); return; }
+    try {
+        const mapContainer = L.DomUtil.get(elementId);
+        if(mapContainer != null && mapContainer._leaflet_id != null) { mapContainer._leaflet_id = null; }
+        const map = L.map(elementId).setView([lat || 0, lng || 0], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        L.marker([lat || 0, lng || 0]).addTo(map);
+    } catch (e) { console.error(`Error initializing map ${elementId}:`, e); }
 }
 
-function pollComments(rentalId) {
-    setInterval(() => {
-        fetch(`/rental/${rentalId}/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(response => response.json())
-            .then(data => {
-                const commentsDiv = document.getElementById('comments');
-                if (commentsDiv) commentsDiv.innerHTML = data.comments.map(c => `<p>${c}</p>`).join('');
-            });
-    }, 5000);
-}
+// --- Initialization on DOMContentLoaded ---
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme(); // Set initial theme based on localStorage
 
-function pollMessages(groupId = null) {
-    setInterval(() => {
-        const url = groupId ? `/messaging/group/${groupId}/` : '/messaging/';
-        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(response => response.json())
-            .then(data => {
-                const messagesDiv = document.getElementById('messages');
-                if (messagesDiv) messagesDiv.innerHTML = data.messages.map(m => `<p>${m.sender}: ${m.content} (${m.timestamp})</p>`).join('');
-            });
-    }, 5000);
-}
+    // Hamburger menu listeners
+    document.getElementById('hamburger-toggle')?.addEventListener('click', toggleMenu);
+    document.getElementById('close-hamburger')?.addEventListener('click', toggleMenu);
 
-function initCalendar(rentalId) {
-    const calendarEl = document.getElementById('calendar');
-    if (!calendarEl) return;
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        events: `/rental/${rentalId}/`,
-        selectable: true,
-        select: function(info) {
-            document.getElementById('start_date').value = info.startStr;
-            document.getElementById('end_date').value = info.endStr;
-        }
+    // Tooltip initialization (Re-added)
+    document.querySelectorAll('[data-tooltip]').forEach(el => {
+        let tooltipElement = null;
+        const showTooltip = () => {
+             if (tooltipElement) return;
+             tooltipElement = document.createElement('div');
+             tooltipElement.className = 'absolute bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg z-50 whitespace-nowrap';
+             tooltipElement.textContent = el.dataset.tooltip || '';
+             tooltipElement.setAttribute('role', 'tooltip');
+             document.body.appendChild(tooltipElement);
+             const rect = el.getBoundingClientRect();
+             tooltipElement.style.left = `${rect.left + window.scrollX + rect.width / 2 - tooltipElement.offsetWidth / 2}px`;
+             tooltipElement.style.top = `${rect.top + window.scrollY - tooltipElement.offsetHeight - 8}px`;
+             tooltipElement.style.opacity = '0'; requestAnimationFrame(() => { tooltipElement.style.opacity = '1'; });
+         };
+         const hideTooltip = () => { if (tooltipElement) { tooltipElement.remove(); tooltipElement = null; } };
+         el.addEventListener('mouseenter', showTooltip);
+         el.addEventListener('mouseleave', hideTooltip);
+         el.addEventListener('focus', showTooltip);
+         el.addEventListener('blur', hideTooltip);
     });
-    calendar.render();
-}
 
-function toggleMenu() {
-    const menu = document.querySelector('.nav-menu');
-    menu.classList.toggle('collapsed');
-}
-
-window.onload = () => {
-    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+    // Map initialization
     document.querySelectorAll('.map').forEach(mapEl => {
         const lat = parseFloat(mapEl.dataset.lat);
         const lng = parseFloat(mapEl.dataset.lng);
         if (!isNaN(lat) && !isNaN(lng)) initMap(lat, lng, mapEl.id);
     });
-    const rentalId = document.body.dataset.rentalId;
-    if (rentalId) {
-        pollComments(rentalId);
-        initCalendar(rentalId);
-    }
-    const groupId = document.body.dataset.groupId;
-    if (window.location.pathname.startsWith('/messaging/')) pollMessages(groupId);
-    document.querySelector('.hamburger')?.addEventListener('click', toggleMenu);
-};
+
+    // Close modals/menu on Escape key
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            document.querySelectorAll('[id^="media-modal-"], [id^="reply-"]').forEach(modal => {
+                if (!modal.classList.contains('hidden')) hideModal(modal.id);
+            });
+            const hamburgerMenu = document.getElementById('hamburger-menu');
+            if (hamburgerMenu && hamburgerMenu.classList.contains('open')) toggleMenu();
+        }
+    });
+
+    // Add user's polling/calendar init logic here if needed
+    // const rentalId = document.body.dataset.rentalId;
+    // if (rentalId) { pollComments(rentalId); initCalendar(rentalId); }
+    // const groupId = document.body.dataset.groupId;
+    // if (window.location.pathname.startsWith('/messaging/')) pollMessages(groupId);
+});
