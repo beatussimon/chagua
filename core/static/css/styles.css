@@ -1,0 +1,180 @@
+:root {
+    --bg-light: #f5f5f5;
+    --bg-dark: #1a1a1a;
+    --text-light: #333;
+    --text-dark: #e5e5e5;
+    --card-light: #fff;
+    --card-dark: #333;
+    --primary: #ff5a5f;
+    --primary-hover: #e04e52;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: var(--bg-light);
+    color: var(--text-light);
+    transition: all 0.3s ease;
+}
+
+body.dark {
+    background: var(--bg-dark);
+    color: var(--text-dark);
+}
+
+header {
+    background: var(--card-light);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+body.dark header {
+    background: var(--card-dark);
+}
+
+.secondary-nav {
+    background: #f0f0f0;
+    padding: 0.5rem 1rem;
+}
+
+body.dark .secondary-nav {
+    background: #2c2c2c;
+}
+
+.feed {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.card {
+    background: var(--card-light);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+body.dark .card {
+    background: var(--card-dark);
+}
+
+button, .button {
+    background: var(--primary);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    border: none;
+    transition: background 0.2s;
+}
+
+button:hover, .button:hover {
+    background: var(--primary-hover);
+}
+
+.map {
+    height: 300px;
+    width: 100%;
+}
+
+.threaded-comment {
+    margin-left: 1rem;
+    border-left: 2px solid #ddd;
+    padding-left: 0.5rem;
+}
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+}
+
+.navbar .search-bar {
+    flex-grow: 1;
+    margin: 0 1rem;
+}
+
+.navbar .search-bar input {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.nav-menu {
+    display: flex;
+    align-items: center;
+}
+
+.nav-menu a, .nav-menu button {
+    margin: 0 0.5rem;
+    color: var(--text-light);
+}
+
+body.dark .nav-menu a, body.dark .nav-menu button {
+    color: var(--text-dark);
+}
+
+.hamburger {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .navbar {
+        flex-wrap: wrap;
+    }
+    .nav-menu {
+        display: none;
+    }
+    .nav-menu.collapsed {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+    .hamburger {
+        display: block;
+    }
+    .navbar .search-bar {
+        order: 3;
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background: var(--card-light);
+    min-width: 160px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+body.dark .dropdown-content {
+    background: var(--card-dark);
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown-content a {
+    padding: 0.5rem 1rem;
+    display: block;
+    color: var(--text-light);
+}
+
+body.dark .dropdown-content a {
+    color: var(--text-dark);
+}
+
+.badge {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-left: 0.5rem;
+}
+
+.badge.blue { background: blue; }
+.badge.green { background: green; }
+.badge.gold { background: gold; }

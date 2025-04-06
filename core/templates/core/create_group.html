@@ -1,0 +1,20 @@
+{% extends 'core/base.html' %}
+{% block title %}{% trans "Create Message Group" %}{% endblock %}
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{% trans "Create Message Group" %}</h1>
+    <div class="card">
+        <form method="post">
+            {% csrf_token %}
+            <label for="name" class="block font-semibold">{% trans "Group Name" %}</label>
+            <input type="text" name="name" id="name" class="border p-2 rounded w-full mb-2" required aria-label="Group name">
+            <label class="block font-semibold">{% trans "Select Participants" %}</label>
+            {% for user in users %}
+                <div class="flex items-center mb-2">
+                    <input type="checkbox" name="participants" value="{{ user.id }}" id="user-{{ user.id }}" class="mr-2">
+                    <label for="user-{{ user.id }}">{{ user.username }}</label>
+                </div>
+            {% endfor %}
+            <button type="submit" class="button">{% trans "Create Group" %}</button>
+        </form>
+    </div>
+{% endblock %}

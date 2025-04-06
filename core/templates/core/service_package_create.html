@@ -1,0 +1,31 @@
+{% extends 'core/base.html' %}
+{% block title %}{% trans "Create Service Package" %}{% endblock %}
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{% trans "Create Service Package" %}</h1>
+    <div class="card">
+        <form method="post">
+            {% csrf_token %}
+            <label for="title" class="block font-semibold">{% trans "Title" %}</label>
+            <input type="text" name="title" id="title" class="border p-2 rounded w-full mb-2" required aria-label="Package title">
+            <label for="description" class="block font-semibold">{% trans "Description" %}</label>
+            <textarea name="description" id="description" class="border p-2 rounded w-full mb-2" required aria-label="Package description"></textarea>
+            <label for="price" class="block font-semibold">{% trans "Price" %}</label>
+            <input type="number" name="price" id="price" step="0.01" class="border p-2 rounded w-full mb-2" required aria-label="Package price">
+            <label for="category" class="block font-semibold">{% trans "Category" %}</label>
+            <select name="category" id="category" class="border p-2 rounded w-full mb-2">
+                <option value="">{% trans "Select Category" %}</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+            <label class="block font-semibold">{% trans "Select Rentals" %}</label>
+            {% for rental in rentals %}
+                <div class="flex items-center mb-2">
+                    <input type="checkbox" name="rentals" value="{{ rental.id }}" id="rental-{{ rental.id }}" class="mr-2">
+                    <label for="rental-{{ rental.id }}">{{ rental.title }} - ${{ rental.price }}</label>
+                </div>
+            {% endfor %}
+            <button type="submit" class="button">{% trans "Create Package" %}</button>
+        </form>
+    </div>
+{% endblock %}

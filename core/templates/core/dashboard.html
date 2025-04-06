@@ -1,0 +1,86 @@
+{% extends 'core/base.html' %}
+{% block title %}{% trans "Dashboard" %}{% endblock %}
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{% trans "Explore Rentals & Packages" %}</h1>
+    <div class="feed">
+        <form method="get" class="mb-6">
+            <div class="flex flex-wrap gap-4">
+                <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'Search...' %}" class="border p-2 rounded">
+                <select name="category" class="border p-2 rounded">
+                    <option value="">{% trans "All Categories" %}</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat.slug }}" {% if category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="number" name="price_min" value="{{ price_min }}" placeholder="{% trans 'Min Price' %}" class="border p-2 rounded">
+                <input type="number" name="price_max" value="{{ price_max }}" placeholder="{% trans 'Max Price' %}" class="border p-2 rounded">
+                <input type="text" name="city" value="{{ city }}" placeholder="{% trans 'City' %}" class="border p-2 rounded">
+                <input type="date" name="start_date" value="{{ start_date }}" class="border p-2 rounded">
+                <input type="date" name="end_date" value="{{ end_date }}" class="border p-2 rounded">
+                <button type="submit" class="button">{% trans "Filter" %}</button>
+            </div>
+        </form>
+        {% if user.is_authenticated %}
+            <form method="post" class="mb-4">
+                {% csrf_token %}
+                <input type="text" name="name" placeholder="{% trans 'Save this search as...' %}" class="border p-2 rounded">
+                <button type="submit" class="button">{% trans "Save Search" %}</button>
+            </form>
+            <div class="mb-4">
+                <h3 class="text-lg">{% trans "Saved Searches" %}</h3>
+                {% for search in saved_searches %}
+                    <a href="{% url 'dashboard' %}?{% for k, v in search.filters.items %}{{ k }}={{ v }}&{% endfor %}" class="text-blue-500">{{ search.name }}</a><br>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% for rental in page_obj %}
+            <div class="card">
+                <h2 class="text-xl font-semibold"><a href="{% url 'rental_detail' rental.id %}" class="text-blue-500">{{ rental.title }}</a> {% if rental.is_verified %}<span class="badge green"></span>{% endif %}</h2>
+                <p>{{ rental.description }}</p>
+                <p class="font-bold">${{ rental.price }}</p>
+                <p>{% trans "Location" %}: {{ rental.city }}, {{ rental.country }}</p>
+                <p>{% trans "Category" %}: {{ rental.category.name }}</p>
+                <p>{% trans "Posted by" %}: <a href="{% url 'profile' rental.owner.username %}" class="text-blue-500">{{ rental.owner }}</a></p>
+                <p>{% trans "Views" %}: {{ rental.views }} | {% trans "Likes" %}: {{ rental.likes.count }}</p>
+                {% if rental.is_featured %}<p class="text-yellow-500">{% trans "Featured" %}</p>{% endif %}
+                <div class="mt-4">
+                    {% for media in rental.media.all %}
+                        <img src="{{ media.file.url }}" class="w-32 h-32 object-cover inline-block mr-2 cursor-pointer" onclick="showModal('media-{{ media.id }}')">
+                        <div id="media-{{ media.id }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+                            <div class="bg-white p-4 rounded">
+                                <img src="{{ media.file.url }}" class="max-w-full max-h-[80vh]">
+                                <button onclick="hideModal('media-{{ media.id }}')" class="mt-4 bg-red-500 text-white p-2 rounded">{% trans "Close" %}</button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% empty %}
+            <p>{% trans "No rentals found." %}</p>
+        {% endfor %}
+        <div class="mt-6">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}" class="button">{% trans "Previous" %}</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="button">{% trans "Next" %}</a>
+            {% endif %}
+        </div>
+        <h2 class="text-xl font-bold mt-6">{% trans "Service Packages" %}</h2>
+        {% for package in packages %}
+            <div class="card">
+                <h3 class="text-lg font-semibold">{{ package.title }}</h3>
+                <p>{{ package.description }}</p>
+                <p class="font-bold">${{ package.price }}</p>
+                <p>{% trans "Category" %}: {{ package.category.name }}</p>
+                <p>{% trans "Includes" %}: {% for rental in package.rentals.all %}{{ rental.title }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                {% if user.is_authenticated and user != package.owner %}
+                    <form method="post" action="{% url 'rental_detail' package.rentals.first.id %}">
+                        {% csrf_token %}
+                        <button type="submit" name="payment" class="button mt-2">{% trans "Book Package" %}</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

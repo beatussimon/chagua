@@ -1,0 +1,139 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ rental.title }}{% endblock %}
+{% block content %}
+    <div class="card" data-rental-id="{{ rental.id }}">
+        <h1 class="text-3xl font-bold">{{ rental.title }} {% if rental.is_verified %}<span class="badge green"></span>{% endif %}</h1>
+        <p>{{ rental.description }}</p>
+        <p class="font-bold">${{ rental.price }}</p>
+        <p>{% trans "Location" %}: {{ rental.city }}, {{ rental.country }}</p>
+        <p>{% trans "Category" %}: {{ rental.category.name }}</p>
+        <p>{% trans "Posted by" %}: <a href="{% url 'profile' rental.owner.username %}" class="text-blue-500">{{ rental.owner }}</a></p>
+        <p>{% trans "Views" %}: {{ rental.views }}</p>
+        <div class="mt-4">
+            {% for media in rental.media.all %}
+                <img src="{{ media.file.url }}" class="w-32 h-32 object-cover inline-block mr-2 cursor-pointer" onclick="showModal('media-{{ media.id }}')">
+                <div id="media-{{ media.id }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+                    <div class="bg-white p-4 rounded">
+                        <img src="{{ media.file.url }}" class="max-w-full max-h-[80vh]">
+                        <button onclick="hideModal('media-{{ media.id }}')" class="mt-4 bg-red-500 text-white p-2 rounded">{% trans "Close" %}</button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {% if rental.latitude and rental.longitude %}
+            <div id="map-{{ rental.id }}" class="map mt-4" data-lat="{{ rental.latitude }}" data-lng="{{ rental.longitude }}"></div>
+        {% endif %}
+        {% if user.is_authenticated %}
+            <form method="post" class="mt-4 space-x-4">
+                {% csrf_token %}
+                <button type="submit" name="contract" class="button">{% trans "Create Contract" %}</button>
+                <button type="submit" name="payment" class="button">{% trans "Pay" %} ${{ rental.price }}</button>
+                <button type="submit" name="like" formaction="{% url 'like_rental' rental.id %}" class="button">{{ rental.likes.count }} ❤️</button>
+            </form>
+            {% if user == rental.owner or rental.team in user.teams.all %}
+                <div class="mt-4 space-x-4">
+                    <a href="{% url 'rental_edit' rental.id %}" class="button">{% trans "Edit" %}</a>
+                    <a href="{% url 'rental_delete' rental.id %}" class="button bg-red-500">{% trans "Delete" %}</a>
+                </div>
+            {% endif %}
+            <h3 class="mt-6 text-xl">{% trans "Availability Calendar" %}</h3>
+            <div id="calendar" class="mt-2"></div>
+            <h3 class="mt-6 text-xl">{% trans "Add Availability" %}</h3>
+            <form method="post" class="mt-2">
+                {% csrf_token %}
+                {{ availability_form.as_p }}
+                <button type="submit" name="availability" class="button">{% trans "Add" %}</button>
+            </form>
+            <h3 class="mt-6 text-xl">{% trans "Queue Booking" %}</h3>
+            <form method="post" class="mt-2">
+                {% csrf_token %}
+                <input type="date" name="start_date" class="border p-2 rounded" required>
+                <input type="date" name="end_date" class="border p-2 rounded" required>
+                <button type="submit" name="queue" class="button">{% trans "Join Queue" %}</button>
+            </form>
+            <h3 class="mt-6 text-xl">{% trans "Contract" %}</h3>
+            <form method="post" class="mt-2">
+                {% csrf_token %}
+                {{ contract_form.as_p }}
+                <select name="template" class="border p-2 rounded w-full mb-2">
+                    <option value="">{% trans "Select Template" %}</option>
+                    {% for template in templates %}
+                        <option value="{{ template.id }}">{{ template.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="contract" class="button">{% trans "Submit Contract" %}</button>
+            </form>
+            <h3 class="mt-6 text-xl">{% trans "Raise Dispute" %}</h3>
+            <form method="post" class="mt-2">
+                {% csrf_token %}
+                {{ dispute_form.as_p }}
+                <button type="submit" name="dispute" class="button">{% trans "Raise Dispute" %}</button>
+            </form>
+            {% if rental.team and rental.team.owner == user or user == rental.owner %}
+                <h3 class="mt-6 text-xl">{% trans "Assign Task" %}</h3>
+                <form method="post" class="mt-2">
+                    {% csrf_token %}
+                    {{ task_form.as_p }}
+                    <button type="submit" name="task" class="button">{% trans "Assign" %}</button>
+                </form>
+                <h3 class="mt-6 text-xl">{% trans "Tasks" %}</h3>
+                {% for task in rental.task_set.all %}
+                    <div class="border-b py-2">
+                        <p>{{ task.description }} - {% trans "Assigned to" %}: {{ task.assignee }} - {{ task.status }}</p>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+        <h3 class="mt-6 text-xl">{% trans "Reviews" %}</h3>
+        {% for review in rental.review_set.all %}
+            <div class="border-b py-2">
+                <p>{{ review.comment }}</p>
+                <p class="text-sm">{% if review.is_anonymous %}{% trans "Anonymous" %}{% else %}{{ review.reviewer }}{% endif %} - {{ review.rating }}/5 - {{ review.created_at }}</p>
+                {% for media in review.media.all %}
+                    <img src="{{ media.file.url }}" class="w-16 h-16 object-cover inline-block mr-2" alt="Review Media">
+                {% endfor %}
+            </div>
+        {% empty %}
+            <p>{% trans "No reviews yet." %}</p>
+        {% endfor %}
+        {% if user.is_authenticated %}
+            <form method="post" class="mt-4" enctype="multipart/form-data">
+                {% csrf_token %}
+                {{ review_form.as_p }}
+                <button type="submit" name="review" class="button">{% trans "Post Review" %}</button>
+            </form>
+        {% endif %}
+        <h3 class="mt-6 text-xl">{% trans "Comments" %}</h3>
+        <div id="comments">
+            {% for comment in comments %}
+                <div class="border-b py-2 {% if comment.parent %}threaded-comment{% endif %}">
+                    <p>{{ comment.content }}</p>
+                    <p class="text-sm">{{ comment.user }} - {{ comment.created_at }}</p>
+                    <form method="post" action="{% url 'like_comment' comment.id %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-blue-500">{{ comment.likes.count }} 👍</button>
+                    </form>
+                    <button onclick="showModal('reply-{{ comment.id }}')" class="text-blue-500 ml-2">{% trans "Reply" %}</button>
+                    <div id="reply-{{ comment.id }}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+                        <div class="bg-white p-4 rounded">
+                            <form method="post" action="{% url 'add_comment' rental.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                                {{ comment_form.as_p }}
+                                <button type="submit" name="comment" class="button">{% trans "Submit Reply" %}</button>
+                                <button type="button" onclick="hideModal('reply-{{ comment.id }}')" class="button bg-red-500 ml-2">{% trans "Cancel" %}</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {% if user.is_authenticated %}
+            <form method="post" action="{% url 'add_comment' rental.id %}" class="mt-4">
+                {% csrf_token %}
+                {{ comment_form.as_p }}
+                <button type="submit" name="comment" class="button">{% trans "Post Comment" %}</button>
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}

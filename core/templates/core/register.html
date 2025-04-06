@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+{% block title %}{% trans "Register" %}{% endblock %}
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{% trans "Register" %}</h1>
+    <div class="card max-w-md mx-auto">
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <label for="id_user_type" class="block font-semibold">{% trans "User Type" %}</label>
+            <select name="user_type" id="id_user_type" class="border p-2 rounded w-full mb-2" aria-label="User type">
+                <option value="individual">{% trans "Individual" %}</option>
+                <option value="business">{% trans "Business" %}</option>
+            </select>
+            <button type="submit" class="button w-full">{% trans "Register" %}</button>
+        </form>
+    </div>
+{% endblock %}

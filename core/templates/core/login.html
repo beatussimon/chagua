@@ -1,0 +1,13 @@
+{% extends 'core/base.html' %}
+{% block title %}{% trans "Login" %}{% endblock %}
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{% trans "Login" %}</h1>
+    <div class="card max-w-md mx-auto">
+        <form method="post">
+            {% csrf_token %}
+            <input type="text" name="username" placeholder="{% trans 'Username' %}" class="border p-2 rounded w-full mb-2" aria-label="Username" required>
+            <input type="password" name="password" placeholder="{% trans 'Password' %}" class="border p-2 rounded w-full mb-2" aria-label="Password" required>
+            <button type="submit" class="button w-full">{% trans "Login" %}</button>
+        </form>
+    </div>
+{% endblock %}

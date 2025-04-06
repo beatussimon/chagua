@@ -1,0 +1,24 @@
+{% extends 'core/base.html' %}
+{% block title %}{% trans "Subscribe" %}{% endblock %}
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{% trans "Choose a Plan" %}</h1>
+    <div class="card">
+        <form method="post">
+            {% csrf_token %}
+            {% for plan in plans %}
+                <div class="border-b py-2">
+                    <label class="flex items-center">
+                        <input type="radio" name="plan_id" value="{{ plan.id }}" class="mr-2" required>
+                        <span>{{ plan.name }} - ${{ plan.price }}/month</span>
+                    </label>
+                    <ul class="ml-6 text-sm">
+                        {% for feature, value in plan.features.items %}
+                            <li>{{ feature }}: {{ value }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endfor %}
+            <button type="submit" class="button mt-4">{% trans "Subscribe" %}</button>
+        </form>
+    </div>
+{% endblock %}
