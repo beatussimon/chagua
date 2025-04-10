@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+{% block title %}{{ item.title }}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/listing.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/calendar.css' %}">
+{% endblock %}
+{% block content %}
+    <div class="bg-white p-8 rounded-xl shadow-lg dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+        <h1 class="text-3xl font-bold mb-4 text-gray-800 dark:text-gray-200">{{ item.title }}</h1>
+        {% if item.image %}
+            <img src="{{ item.image.url }}" alt="{{ item.title }}" class="w-full h-80 object-cover rounded-lg mb-6">
+        {% endif %}
+        <p class="text-gray-600 mb-4 leading-relaxed dark:text-gray-400">{{ item.description }}</p>
+        <p class="text-xl font-semibold text-teal-700 mb-4 dark:text-teal-300">{{ item.base_price }} {{ item.base_currency }} (~{{ converted_price|floatformat:2 }} {{ user_currency }}) {% if item.type == 'service' %}/hr{% endif %}</p>
+        <p class="text-sm text-yellow-500 dark:text-yellow-400 mb-6">★ {{ item.rating|floatformat:1 }} ({{ item.review_count }} {% trans "reviews" %})</p>
+        <div class="calendar mb-6" data-availability='{{ item.availability|json_script:"availability" }}'></div>
+        {% if user.is_authenticated %}
+            <a href="{% url 'booking' item.id %}" class="btn-rent inline-block">{% trans "Rent/Hire Now" %}</a>
+            {% if chat_available %}
+                <a href="{% url 'chat' item.owner.id %}" class="btn-rent inline-block ml-4 bg-gradient-to-r from-teal-600 to-teal-400">{% trans "Message Owner" %}</a>
+            {% endif %}
+        {% else %}
+            <p class="text-gray-500 dark:text-gray-400">{% trans "Please" %} <a href="{% url 'login' %}" class="text-teal-600 hover:underline dark:text-teal-400">{% trans "login" %}</a> {% trans "to book." %}</p>
+        {% endif %}
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Reviews" %}</h2>
+        <div class="space-y-4 mb-6">
+            {% for review in reviews %}
+                <div class="bg-gray-100 p-4 rounded-lg dark:bg-gray-700">
+                    <p class="text-sm text-yellow-500 dark:text-yellow-400">★ {{ review.rating }}</p>
+                    <p class="text-gray-600 dark:text-gray-400">{{ review.comment|default:_("No comment provided.") }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ review.reviewer.username }} - {{ review.created_at|date:"F d, Y" }}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No reviews yet." %}</p>
+            {% endfor %}
+        </div>
+        {% if can_review %}
+            <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">{% trans "Add Your Review" %}</h3>
+            <form action="{% url 'add_review' item.id %}" method="post" class="space-y-4">
+                {% csrf_token %}
+                {{ review_form.as_p }}
+                <button type="submit" class="btn-rent">{% trans "Submit Review" %}</button>
+            </form>
+        {% endif %}
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Related Listings" %}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {% for related in related %}
+                <div class="bg-gray-100 p-4 rounded-lg shadow-sm dark:bg-gray-700 bg-opacity-80 backdrop-blur-md">
+                    <a href="{% url 'listing' related.id %}" class="text-teal-600 hover:underline dark:text-teal-400 dark:hover:text-teal-300 font-medium">{{ related.title }}</a>
+                    <p class="text-gray-600 dark:text-gray-400">{{ related.base_price }} {{ related.base_currency }}</p>
+                    <p class="text-sm text-yellow-500 dark:text-yellow-400">★ {{ related.rating|floatformat:1 }}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No related listings." %}</p>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
+{% block js %}
+    <script src="{% static 'core/js/calendar.js' %}"></script>
+{% endblock %}

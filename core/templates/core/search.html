@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+{% block title %}{% trans "Search Results" %}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/search.css' %}">
+{% endblock %}
+{% block content %}
+    <h1 class="text-4xl font-extrabold mb-8 text-teal-700 dark:text-teal-300 tracking-tight">{% trans "Search Results" %}</h1>
+    <form action="{% url 'search' %}" method="get" class="mb-8 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+        <input type="text" name="q" value="{{ query }}" placeholder="{% trans 'Search items or services...' %}" class="form-input flex-grow">
+        <select name="type" class="form-input">
+            <option value="">{% trans "All Types" %}</option>
+            <option value="item" {% if type_filter == 'item' %}selected{% endif %}>{% trans "Items" %}</option>
+            <option value="service" {% if type_filter == 'service' %}selected{% endif %}>{% trans "Services" %}</option>
+        </select>
+        <input type="number" name="min_price" value="{{ min_price }}" placeholder="{% trans 'Min Price' %}" class="form-input w-32">
+        <input type="number" name="max_price" value="{{ max_price }}" placeholder="{% trans 'Max Price' %}" class="form-input w-32">
+        <button type="submit" class="btn-rent">{% trans "Filter" %}</button>
+    </form>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for result in results %}
+            <div class="bg-white p-6 rounded-lg shadow-md dark:bg-gray-800 transition duration-300 hover:shadow-xl hover:-translate-y-1 bg-opacity-80 backdrop-blur-md">
+                <a href="{% url 'listing' result.id %}" class="text-teal-600 hover:underline dark:text-teal-400 dark:hover:text-teal-300 font-medium">{{ result.title }}</a>
+                <p class="text-gray-600 dark:text-gray-400">{{ result.base_price }} {{ result.base_currency }}{% if result.type == 'service' %}/hr{% endif %} (~{{ result.base_price|floatformat:2|multiply:EXCHANGE_RATES[result.base_currency][user_currency] }} {{ user_currency }})</p>
+                <p class="text-sm text-yellow-500 dark:text-yellow-400">★ {{ result.rating|floatformat:1 }} ({{ result.review_count }})</p>
+            </div>
+        {% empty %}
+            <p class="text-gray-500 dark:text-gray-400">{% trans "No results found." %}</p>
+        {% endfor %}
+    </div>
+    <div class="mt-6 flex justify-between">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&type={{ type_filter }}&min_price={{ min_price }}&max_price={{ max_price }}" class="text-teal-600 hover:underline dark:text-teal-400">{% trans "Previous" %}</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&type={{ type_filter }}&min_price={{ min_price }}&max_price={{ max_price }}" class="text-teal-600 hover:underline dark:text-teal-400 ml-auto">{% trans "Next" %}</a>
+        {% endif %}
+    </div>
+{% endblock %}

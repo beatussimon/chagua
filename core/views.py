@@ -1,547 +1,332 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
+from django.views.generic import ListView, DetailView, FormView, CreateView
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.urls import reverse_lazy
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.contrib import messages
-from django.http import HttpResponseForbidden, JsonResponse, FileResponse
-from django.core.paginator import Paginator
-from django.db.models import Q, Sum, Avg
-from django.utils.translation import gettext_lazy as _
-from django.utils import timezone
-from django.urls import reverse
-from .models import *
-from .forms import *
-import os
 from django.conf import settings
-import json
+from django.utils.translation import gettext_lazy as _
+from django.db.models import Q, Count
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from datetime import datetime, timedelta
+from .models import RentalItem, SocialPost, Reservation, UserProfile, Review, UserAction, Message, Badge, UserBadge
+from .forms import SignUpForm, ReservationForm, RentalItemForm, SocialPostForm, ReviewForm
+from django.contrib.auth.models import User
 
+def award_points(user, points, action):
+    profile = user.profile
+    profile.points += points
+    profile.save()
+    badges = Badge.objects.filter(points_required__lte=profile.points).exclude(userbadge__user=user)
+    for badge in badges:
+        UserBadge.objects.create(user=user, badge=badge)
+        messages.success(user.request, _(f"Badge earned: {badge.name}!"))
 
+class HomeView(ListView):
+    model = SocialPost
+    template_name = 'home.html'
+    context_object_name = 'posts'
+    ordering = ['-created_at']
+    paginate_by = 10
 
-def dashboard(request):
-    query = request.GET.get('q', '')
-    category = request.GET.get('category', '')
-    price_min = request.GET.get('price_min', '')
-    price_max = request.GET.get('price_max', '')
-    city = request.GET.get('city', '')
-    start_date = request.GET.get('start_date', '')
-    end_date = request.GET.get('end_date', '')
-    rentals = Rental.objects.all()
-    packages = ServicePackage.objects.all()
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['items'] = RentalItem.objects.filter(type='item', verified=True).order_by('-rating')[:6]
+        context['services'] = RentalItem.objects.filter(type='service', verified=True).order_by('-rating')[:6]
+        user_currency = self.request.user.profile.currency if self.request.user.is_authenticated else settings.DEFAULT_CURRENCY
+        context['user_currency'] = user_currency
+        if self.request.user.is_authenticated:
+            actions = UserAction.objects.filter(user=self.request.user).values('details').annotate(count=Count('id'))
+            prefs = {a['details'].get('type', 'item'): a['count'] for a in actions if 'type' in a['details']}
+            top_type = max(prefs, key=prefs.get, default='item') if prefs else 'item'
+            context['recommended'] = RentalItem.objects.filter(type=top_type, verified=True).exclude(owner=self.request.user).order_by('-rating')[:4]
+        return context
 
-    if query:
-        rentals = rentals.filter(Q(title__icontains=query) | Q(description__icontains=query))
-        packages = packages.filter(Q(title__icontains=query) | Q(description__icontains=query))
-    if category:
-        rentals = rentals.filter(category__slug=category)
-        packages = packages.filter(category__slug=category)
-    if price_min:
-        rentals = rentals.filter(price__gte=price_min)
-        packages = packages.filter(price__gte=price_min)
-    if price_max:
-        rentals = rentals.filter(price__lte=price_max)
-        packages = packages.filter(price__lte=price_max)
-    if city:
-        rentals = rentals.filter(city__icontains=city)
-    if start_date and end_date:
-        rentals = rentals.filter(availabilities__start_date__lte=end_date, availabilities__end_date__gte=start_date, availabilities__is_available=True)
+class SearchView(ListView):
+    model = RentalItem
+    template_name = 'search.html'
+    context_object_name = 'results'
+    paginate_by = 12
 
-    if request.user.is_authenticated:
-        rentals = sorted(rentals, key=lambda r: r.get_recommendation_score(request.user), reverse=True)
-    else:
-        rentals = rentals.order_by('-created_at')
+    def get_queryset(self):
+        query = self.request.GET.get('q', '')
+        type_filter = self.request.GET.get('type', '')
+        min_price = float(self.request.GET.get('min_price', 0))
+        max_price = float(self.request.GET.get('max_price', 10000))
+        UserAction.objects.create(user=self.request.user if self.request.user.is_authenticated else None,
+                                 action='search', details={'query': query, 'type': type_filter})
+        queryset = RentalItem.objects.filter(verified=True)
+        if query:
+            queryset = queryset.filter(Q(title__icontains=query) | Q(description__icontains=query))
+        if type_filter in ['item', 'service']:
+            queryset = queryset.filter(type=type_filter)
+        queryset = queryset.filter(base_price__gte=min_price, base_price__lte=max_price)
+        return queryset.order_by('-rating')
 
-    paginator = Paginator(rentals, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    notifications = Notification.objects.filter(user=request.user, is_read=False) if request.user.is_authenticated else []
-    categories = Category.objects.all()
-    saved_searches = SavedSearch.objects.filter(user=request.user) if request.user.is_authenticated else []
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['query'] = self.request.GET.get('q', '')
+        context['type_filter'] = self.request.GET.get('type', '')
+        context['min_price'] = self.request.GET.get('min_price', '')
+        context['max_price'] = self.request.GET.get('max_price', '')
+        context['user_currency'] = self.request.user.profile.currency if self.request.user.is_authenticated else settings.DEFAULT_CURRENCY
+        return context
 
-    if request.method == 'POST' and request.user.is_authenticated:
-        form = SavedSearchForm(request.POST)
+class ListingView(DetailView):
+    model = RentalItem
+    template_name = 'listing.html'
+    context_object_name = 'item'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.object.views += 1
+        self.object.save()
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user_currency = self.request.user.profile.currency if self.request.user.is_authenticated else settings.DEFAULT_CURRENCY
+        context['converted_price'] = float(self.object.base_price) * settings.EXCHANGE_RATES[self.object.base_currency][user_currency]
+        context['user_currency'] = user_currency
+        context['related'] = RentalItem.objects.filter(type=self.object.type, verified=True).exclude(id=self.object.id).order_by('-rating')[:4]
+        context['reviews'] = Review.objects.filter(item=self.object).order_by('-created_at')[:5]
+        if self.request.user.is_authenticated:
+            context['can_review'] = not Review.objects.filter(reviewer=self.request.user, item=self.object).exists()
+            context['review_form'] = ReviewForm()
+            context['chat_available'] = self.object.owner != self.request.user
+        return context
+
+class ProfileView(LoginRequiredMixin, DetailView):
+    model = User
+    template_name = 'profile.html'
+    context_object_name = 'profile'
+
+    def get_object(self):
+        return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['listings'] = self.request.user.rentalitem_set.all().order_by('-created_at')
+        context['reservations'] = self.request.user.reservation_set.all().order_by('-created_at')
+        context['posts'] = self.request.user.socialpost_set.all().order_by('-created_at')[:5]
+        context['reviews'] = Review.objects.filter(profile=self.request.user.profile).order_by('-created_at')[:5]
+        context['badges'] = UserBadge.objects.filter(user=self.request.user).select_related('badge')
+        return context
+
+def signup(request):
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
         if form.is_valid():
-            filters = {'q': query, 'category': category, 'price_min': price_min, 'price_max': price_max, 'city': city, 'start_date': start_date, 'end_date': end_date}
-            form.instance.filters = {k: v for k, v in filters.items() if v}
-            form.instance.user = request.user
-            form.save()
-            messages.success(request, _("Search saved!"))
-
-    return render(request, 'core/dashboard.html', {
-        'page_obj': page_obj, 'packages': packages, 'notifications': notifications, 'categories': categories,
-        'saved_searches': saved_searches, 'query': query, 'category': category, 'price_min': price_min,
-        'price_max': price_max, 'city': city, 'start_date': start_date, 'end_date': end_date
-    })
-
-def rental_detail(request, rental_id):
-    rental = get_object_or_404(Rental, id=rental_id)
-    rental.views += 1
-    rental.save()
-    comments = rental.comments.filter(parent__isnull=True)
-    comment_form = CommentForm()
-    review_form = ReviewForm()
-    availability_form = AvailabilityForm()
-    dispute_form = DisputeForm()
-    task_form = TaskForm()
-    contract_form = ContractForm(initial={'terms': rental.description, 'start_date': timezone.now().date(), 'end_date': timezone.now().date() + timezone.timedelta(days=7)})
-
-    if request.method == 'POST' and request.user.is_authenticated:
-        if 'contract' in request.POST:
-            if request.user == rental.owner:
-                messages.error(request, _("You cannot contract your own rental."))
-            else:
-                contract_form = ContractForm(request.POST)
-                if contract_form.is_valid():
-                    contract = contract_form.save(commit=False)
-                    contract.rental = rental
-                    contract.tenant = request.user
-                    contract.save()
-                    return redirect('download_contract', contract_id=contract.id)
-        elif 'payment' in request.POST:
-            payment = Payment.objects.create(payer=request.user, rental=rental, amount=rental.price)
-            messages.success(request, _("Payment submitted! Follow offline instructions."))
-        elif 'review' in request.POST:
-            review_form = ReviewForm(request.POST, request.FILES)
-            if review_form.is_valid():
-                review = review_form.save(commit=False)
-                review.reviewer = request.user
-                review.rental = rental
-                review.save()
-                # Handle multiple file uploads
-                if 'media_files' in request.FILES:
-                    for file in request.FILES.getlist('media_files'):
-                        if file.size > 5 * 1024 * 1024:  # 5MB limit
-                            messages.error(request, _("File too large. Max 5MB."))
-                            continue
-                        media = Media.objects.create(file=file, uploaded_by=request.user)
-                        review.media.add(media)
-                messages.success(request, _("Review posted!"))
-        elif 'comment' in request.POST:
-            comment_form = CommentForm(request.POST)
-            if comment_form.is_valid():
-                comment = comment_form.save(commit=False)
-                comment.rental = rental
-                comment.user = request.user
-                parent_id = request.POST.get('parent_id')
-                if parent_id:
-                    comment.parent = get_object_or_404(Comment, id=parent_id)
-                comment.save()
-                messages.success(request, _("Comment added!"))
-        elif 'availability' in request.POST:
-            availability_form = AvailabilityForm(request.POST)
-            if availability_form.is_valid():
-                availability = availability_form.save(commit=False)
-                availability.rental = rental
-                availability.save()
-                messages.success(request, _("Availability added!"))
-        elif 'dispute' in request.POST:
-            dispute_form = DisputeForm(request.POST)
-            if dispute_form.is_valid():
-                contract = Contract.objects.filter(rental=rental, tenant=request.user).first()
-                if contract:
-                    dispute = dispute_form.save(commit=False)
-                    dispute.contract = contract
-                    dispute.raised_by = request.user
-                    dispute.save()
-                    messages.success(request, _("Dispute raised!"))
-        elif 'task' in request.POST:
-            task_form = TaskForm(request.POST)
-            if task_form.is_valid():
-                task = task_form.save(commit=False)
-                task.rental = rental
-                task.save()
-                messages.success(request, _("Task assigned!"))
-        elif 'queue' in request.POST:
-            start_date = request.POST.get('start_date')
-            end_date = request.POST.get('end_date')
-            BookingQueue.objects.create(user=request.user, rental=rental, start_date=start_date, end_date=end_date)
-            messages.success(request, _("Added to booking queue!"))
-
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({'comments': [c.content for c in comments], 'availabilities': [{'start': a.start_date.isoformat(), 'end': a.end_date.isoformat()} for a in rental.availabilities.all()]})
-    return render(request, 'core/rental_detail.html', {
-        'rental': rental, 'comments': comments, 'comment_form': comment_form, 'review_form': review_form,
-        'availability_form': availability_form, 'dispute_form': dispute_form, 'task_form': task_form,
-        'contract_form': contract_form, 'templates': ContractTemplate.objects.all()
-    })
-
-@login_required
-def download_contract(request, contract_id):
-    contract = get_object_or_404(Contract, id=contract_id)
-    if request.user not in [contract.tenant, contract.rental.owner]:
-        return HttpResponseForbidden()
-    file_path = os.path.join(settings.MEDIA_ROOT, f'contracts/contract_{contract.id}.txt')
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'w') as f:
-        f.write(f"Contract for {contract.rental.title}\nTenant: {contract.tenant.username}\nOwner: {contract.rental.owner.username}\nTerms: {contract.terms}\nCustom Terms: {contract.custom_terms}\nEmergency Clause: {contract.emergency_clause}")
-    return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=f"contract_{contract.id}.txt")
-
-@login_required
-def rental_edit(request, rental_id):
-    rental = get_object_or_404(Rental, id=rental_id)
-    if request.user != rental.owner and rental.team not in request.user.teams.all():
-        return HttpResponseForbidden()
-    if request.method == 'POST':
-        form = RentalForm(request.POST, request.FILES, instance=rental)
-        if form.is_valid():
-            rental = form.save()
-            for file in request.FILES.getlist('media_files'):
-                if file.size > 5 * 1024 * 1024:
-                    messages.error(request, _("File too large."))
-                    continue
-                media = Media.objects.create(file=file, uploaded_by=request.user)
-                rental.media.add(media)
-            messages.success(request, _("Rental updated!"))
-            return redirect('rental_detail', rental_id=rental.id)
+            user = form.save()
+            UserAction.objects.create(user=user, action='signup')
+            award_points(user, 10, 'signup')
+            messages.success(request, _("Account created successfully! Please log in."))
+            return redirect('login')
     else:
-        form = RentalForm(instance=rental)
-    return render(request, 'core/rental_edit.html', {'form': form, 'rental': rental})
+        form = SignUpForm()
+    return render(request, 'signup.html', {'form': form})
 
-@login_required
-def rental_delete(request, rental_id):
-    rental = get_object_or_404(Rental, id=rental_id)
-    if request.user != rental.owner and rental.team not in request.user.teams.all():
-        return HttpResponseForbidden()
-    if request.method == 'POST':
-        rental.delete()
-        messages.success(request, _("Rental deleted!"))
-        return redirect('dashboard')
-    return render(request, 'core/rental_delete.html', {'rental': rental})
+class BookingView(LoginRequiredMixin, FormView):
+    template_name = 'booking.html'
+    form_class = ReservationForm
+    success_url = reverse_lazy('home')
 
-@login_required
-def rental_create(request):
-    if request.method == 'POST':
-        form = RentalForm(request.POST, request.FILES)
-        if form.is_valid():
-            rental = form.save(commit=False)
-            rental.owner = request.user
-            rental.save()
-            for file in request.FILES.getlist('media_files'):
-                if file.size > 5 * 1024 * 1024:
-                    messages.error(request, _("File too large."))
-                    continue
-                media = Media.objects.create(file=file, uploaded_by=request.user)
-                rental.media.add(media)
-            messages.success(request, _("Rental created!"))
-            return redirect('dashboard')
-    else:
-        form = RentalForm()
-    return render(request, 'core/rental_create.html', {'form': form})
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(RentalItem, id=self.kwargs['item_id'], verified=True)
+        context['item'] = item
+        user_currency = self.request.user.profile.currency
+        base_price = float(item.base_price)
+        if item.pricing_rules:
+            today = datetime.now().date()
+            start_date_str = self.request.POST.get('start_date', today.isoformat() + 'T00:00')
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%dT%H:%M').date()
+            if start_date.weekday() >= 5 and 'weekend' in item.pricing_rules:
+                base_price *= item.pricing_rules['weekend']
+        context['converted_price'] = base_price * settings.EXCHANGE_RATES[item.base_currency][user_currency]
+        context['user_currency'] = user_currency
+        return context
 
-@login_required
-def service_package_create(request):
-    if request.method == 'POST':
-        title = request.POST.get('title')
-        description = request.POST.get('description')
-        price = request.POST.get('price')
-        rental_ids = request.POST.getlist('rentals')
-        category_id = request.POST.get('category')
-        package = ServicePackage.objects.create(
-            owner=request.user, title=title, description=description, price=price,
-            category_id=category_id if category_id else None
+    def form_valid(self, form):
+        item = get_object_or_404(RentalItem, id=self.kwargs['item_id'], verified=True)
+        start_date = form.cleaned_data['start_date']
+        end_date = form.cleaned_data['end_date']
+        for date in item.availability:
+            d = datetime.strptime(date, '%Y-%m-%d').replace(tzinfo=start_date.tzinfo)
+            if start_date <= d <= end_date and item.availability[date] == 'booked':
+                messages.error(self.request, _("This item is not available for the selected dates."))
+                return self.form_invalid(form)
+        reservation = form.save(commit=False)
+        reservation.renter = self.request.user
+        reservation.item = item
+        duration = (end_date - start_date).total_seconds() / 86400
+        base_price = float(item.base_price)
+        if item.pricing_rules and start_date.weekday() >= 5 and 'weekend' in item.pricing_rules:
+            base_price *= item.pricing_rules['weekend']
+        reservation.total_cost = base_price * max(1, duration)
+        reservation.save()
+        current = start_date
+        while current <= end_date:
+            item.availability[current.strftime('%Y-%m-%d')] = 'booked'
+            current += timedelta(days=1)
+        item.save()
+        UserAction.objects.create(user=self.request.user, action='booking', details={'item': item.title})
+        award_points(self.request.user, 20, 'booking')
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'user_{item.owner.id}',
+            {'type': 'send_notification', 'message': f'{self.request.user.username} booked {item.title}'}
         )
-        package.rentals.set(Rental.objects.filter(id__in=rental_ids, owner=request.user))
-        messages.success(request, _("Service package created!"))
-        return redirect('dashboard')
-    rentals = Rental.objects.filter(owner=request.user)
-    categories = Category.objects.all()
-    return render(request, 'core/service_package_create.html', {'rentals': rentals, 'categories': categories})
+        messages.success(self.request, _("Booking successful! Please upload payment proof."))
+        return redirect('payment', reservation_id=reservation.id)
 
 @login_required
-def like_rental(request, rental_id):
-    rental = get_object_or_404(Rental, id=rental_id)
-    if request.method == 'POST':
-        if request.user in rental.likes.all():
-            rental.likes.remove(request.user)
-        else:
-            rental.likes.add(request.user)
-            Notification.objects.create(user=rental.owner, content=f"{request.user.username} liked {rental.title}", link=reverse('rental_detail', args=[rental.id]))
-    return redirect('rental_detail', rental_id=rental_id)
-
-@login_required
-def add_comment(request, rental_id):
-    rental = get_object_or_404(Rental, id=rental_id)
-    if request.method == 'POST':
-        form = CommentForm(request.POST)
-        if form.is_valid():
-            comment = form.save(commit=False)
-            comment.rental = rental
-            comment.user = request.user
-            parent_id = request.POST.get('parent_id')
-            if parent_id:
-                comment.parent = get_object_or_404(Comment, id=parent_id)
-            comment.save()
-            Notification.objects.create(user=rental.owner, content=f"{request.user.username} commented on {rental.title}", link=reverse('rental_detail', args=[rental.id]))
-            messages.success(request, _("Comment added!"))
-    return redirect('rental_detail', rental_id=rental_id)
-
-@login_required
-def like_comment(request, comment_id):
-    comment = get_object_or_404(Comment, id=comment_id)
-    if request.method == 'POST':
-        if request.user in comment.likes.all():
-            comment.likes.remove(request.user)
-        else:
-            comment.likes.add(request.user)
-            Notification.objects.create(user=comment.user, content=f"{request.user.username} liked your comment", link=reverse('rental_detail', args=[comment.rental.id]))
-    return redirect('rental_detail', rental_id=comment.rental.id)
-
-@login_required
-def messaging(request):
-    recipient_id = request.GET.get('recipient')
-    groups = MessageGroup.objects.filter(participants=request.user)
-    users = User.objects.exclude(id=request.user.id)
-    current_group = None
-    sent = received = []
-
-    if recipient_id:
-        recipient = get_object_or_404(User, id=recipient_id)
-        sent = Message.objects.filter(sender=request.user, recipient=recipient).order_by('timestamp')
-        received = Message.objects.filter(sender=recipient, recipient=request.user).order_by('timestamp')
-    elif 'group_id' in request.GET:
-        current_group = get_object_or_404(MessageGroup, id=request.GET['group_id'], participants=request.user)
-        sent = Message.objects.filter(sender=request.user, group=current_group).order_by('timestamp')
-        received = Message.objects.filter(group=current_group).exclude(sender=request.user).order_by('timestamp')
-
-    if request.method == 'POST':
-        form = MessageForm(request.POST, request.FILES)
-        if form.is_valid():
-            message = form.save(commit=False)
-            message.sender = request.user
-            if recipient_id:
-                message.recipient = recipient
-            elif current_group:
-                message.group = current_group
-            schedule = request.POST.get('schedule')
-            if schedule:
-                message.timestamp = timezone.datetime.fromisoformat(schedule)
-                message.is_scheduled = True
-            message.save()
-            if 'template' in request.POST:
-                MessageTemplate.objects.create(user=request.user, content=message.content)
-            messages.success(request, _("Message sent!"))
-            return redirect(request.path_info + ('?recipient=' + recipient_id if recipient_id else '?group_id=' + str(current_group.id)))
-    else:
-        form = MessageForm()
-
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({'sent': [m.content for m in sent], 'received': [m.content for m in received]})
-    return render(request, 'core/messaging.html', {
-        'groups': groups, 'users': users, 'sent': sent, 'received': received, 'form': form,
-        'templates': MessageTemplate.objects.filter(user=request.user), 'current_group': current_group
+def payment(request, reservation_id):
+    reservation = get_object_or_404(Reservation, id=reservation_id, renter=request.user)
+    if reservation.status != 'pending':
+        messages.error(request, _("This reservation cannot be modified."))
+        return redirect('profile')
+    if request.method == 'POST' and 'payment_proof' in request.FILES:
+        try:
+            reservation.payment_proof = request.FILES['payment_proof']
+            reservation.status = 'confirmed'
+            reservation.save()
+            UserAction.objects.create(user=request.user, action='payment', details={'reservation': reservation.id})
+            award_points(request.user, 15, 'payment')
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'user_{reservation.item.owner.id}',
+                {'type': 'send_notification', 'message': f'Payment confirmed for {reservation.item.title}'}
+            )
+            messages.success(request, _("Payment proof uploaded successfully!"))
+            return redirect('profile')
+        except Exception as e:
+            messages.error(request, f"Error uploading payment proof: {str(e)}")
+    user_currency = request.user.profile.currency
+    converted_cost = float(reservation.total_cost) * settings.EXCHANGE_RATES[reservation.item.base_currency][user_currency]
+    return render(request, 'booking.html', {
+        'reservation': reservation,
+        'converted_cost': converted_cost,
+        'user_currency': user_currency
     })
 
 @login_required
-def create_group(request):
-    if request.method == 'POST':
-        name = request.POST.get('name')
-        participant_ids = request.POST.getlist('participants')
-        group = MessageGroup.objects.create(name=name)
-        group.participants.add(request.user, *User.objects.filter(id__in=participant_ids))
-        messages.success(request, _("Group created!"))
-        return redirect('messaging_group', group_id=group.id)
-    users = User.objects.exclude(id=request.user.id)
-    return render(request, 'core/create_group.html', {'users': users})
+def notifications(request):
+    return render(request, 'notifications.html')
 
 @login_required
-def team_manage(request, team_id):
-    team = get_object_or_404(Team, id=team_id, owner=request.user)
-    if request.method == 'POST':
-        if 'add_member' in request.POST:
-            user_id = request.POST.get('user_id')
-            user = get_object_or_404(User, id=user_id)
-            team.members.add(user)
-            messages.success(request, _("Member added!"))
-        elif 'remove_member' in request.POST:
-            user_id = request.POST.get('user_id')
-            user = get_object_or_404(User, id=user_id)
-            team.members.remove(user)
-            messages.success(request, _("Member removed!"))
-    users = User.objects.exclude(id=request.user.id).exclude(teams=team)
-    return render(request, 'core/team_manage.html', {'team': team, 'users': users})
+def like_post(request, post_id):
+    if request.method != 'POST':
+        return HttpResponseBadRequest("Invalid request method")
+    post = get_object_or_404(SocialPost, id=post_id)
+    liked = request.user in post.likes.all()
+    if liked:
+        post.likes.remove(request.user)
+    else:
+        post.likes.add(request.user)
+        award_points(request.user, 5, 'like')
+    return JsonResponse({'likes': post.likes.count(), 'liked': not liked})
 
 @login_required
-def team_history(request, team_id):
-    team = get_object_or_404(Team, id=team_id, owner=request.user)
-    logs = ActionLog.objects.filter(user__in=team.members.all()) | ActionLog.objects.filter(user=team.owner)
-    return render(request, 'core/team_history.html', {'team': team, 'logs': logs})
+def add_comment(request, post_id):
+    if request.method != 'POST':
+        return HttpResponseBadRequest("Invalid request method")
+    post = get_object_or_404(SocialPost, id=post_id)
+    comment_text = request.POST.get('comment', '').strip()
+    if not comment_text:
+        return JsonResponse({'error': 'Comment cannot be empty'}, status=400)
+    comment = {'user': request.user.username, 'text': comment_text, 'date': datetime.now().isoformat()}
+    post.comments.append(comment)
+    post.save()
+    award_points(request.user, 10, 'comment')
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'user_{post.user.id}',
+        {'type': 'send_notification', 'message': f'{request.user.username} commented on your post'}
+    )
+    return JsonResponse({'comment': comment})
 
-def feedback(request):
-    reviews = Review.objects.all().order_by('-likes', '-created_at')
-    faqs = FAQ.objects.all().order_by('-likes')
-    faq_form = FAQForm()
-    if request.method == 'POST' and request.user.is_authenticated:
-        if 'faq' in request.POST:
-            faq_form = FAQForm(request.POST)
-            if faq_form.is_valid():
-                faq = faq_form.save(commit=False)
-                faq.created_by = request.user
-                faq.save()
-                messages.success(request, _("FAQ added!"))
-        elif 'like_review' in request.POST:
-            review = get_object_or_404(Review, id=request.POST.get('review_id'))
-            review.likes += 1
+class AddListingView(LoginRequiredMixin, CreateView):
+    model = RentalItem
+    form_class = RentalItemForm
+    template_name = 'add_listing.html'
+    success_url = reverse_lazy('profile')
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user
+        response = super().form_valid(form)
+        UserAction.objects.create(user=self.request.user, action='add_listing', details={'title': form.instance.title})
+        award_points(self.request.user, 25, 'add_listing')
+        messages.success(self.request, _("Listing added successfully! It will be visible once verified."))
+        return response
+
+class AddPostView(LoginRequiredMixin, CreateView):
+    model = SocialPost
+    form_class = SocialPostForm
+    template_name = 'add_post.html'
+    success_url = reverse_lazy('home')
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        response = super().form_valid(form)
+        UserAction.objects.create(user=self.request.user, action='add_post', details={'caption': form.instance.caption[:50]})
+        award_points(self.request.user, 15, 'add_post')
+        messages.success(self.request, _("Post shared successfully!"))
+        return response
+
+@login_required
+def add_review(request, item_id):
+    item = get_object_or_404(RentalItem, id=item_id, verified=True)
+    if Review.objects.filter(reviewer=request.user, item=item).exists():
+        messages.error(request, _("You have already reviewed this item."))
+        return redirect('listing', pk=item_id)
+    if request.method == 'POST':
+        form = ReviewForm(request.POST)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.reviewer = request.user
+            review.item = item
             review.save()
-        elif 'like_faq' in request.POST:
-            faq = get_object_or_404(FAQ, id=request.POST.get('faq_id'))
-            faq.likes += 1
-            faq.save()
-        elif 'dispute_review' in request.POST:
-            review = get_object_or_404(Review, id=request.POST.get('review_id'))
-            FeedbackDispute.objects.create(review=review, user=request.user, reason=request.POST.get('reason'))
-            messages.success(request, _("Review disputed!"))
-    return render(request, 'core/feedback.html', {'reviews': reviews, 'faqs': faqs, 'faq_form': faq_form})
-
-def profile(request, username):
-    user = get_object_or_404(User, username=username)
-    rentals = user.rentals.all()
-    packages = user.service_packages.all()
-    teams = user.owned_teams.all()
-    earnings = Payment.objects.filter(rental__owner=user, status='approved').aggregate(Sum('amount'))['amount__sum'] or 0
-    analytics = {
-        'views': rentals.aggregate(Sum('views'))['views__sum'] or 0,
-        'avg_rating': Review.objects.filter(rental__owner=user).aggregate(Avg('rating'))['rating__avg'] or 0
-    }
-
-    if request.method == 'POST' and request.user == user:
-        if 'verification_document' in request.FILES:
-            user.verification_document = request.FILES['verification_document']
-            user.save()
-            messages.success(request, _("Verification document uploaded!"))
-        elif 'follow' in request.POST:
-            if request.user in user.followers.all():
-                user.followers.remove(request.user)
-            else:
-                user.followers.add(request.user)
-        elif 'theme' in request.POST:
-            user.theme_preference = request.POST['theme']
-            user.save()
-        elif 'boost' in request.POST:
-            rental = get_object_or_404(Rental, id=request.POST.get('rental_id'), owner=user)
-            if user.is_premium:
-                rental.boosted = True
-                rental.save()
-                messages.success(request, _("Rental boosted!"))
-            else:
-                messages.error(request, _("Premium subscription required to boost posts."))
-        elif 'feature' in request.POST:
-            rental = get_object_or_404(Rental, id=request.POST.get('rental_id'), owner=user)
-            if user.is_premium:
-                Payment.objects.create(payer=user, rental=rental, amount=10, instructions="Pay $10 to feature this rental.")
-                rental.is_featured = True
-                rental.save()
-                messages.success(request, _("Rental featured! Follow payment instructions."))
-            else:
-                messages.error(request, _("Premium subscription required to feature posts."))
-        elif 'create_team' in request.POST:
-            Team.objects.create(name=request.POST.get('team_name'), owner=user)
-            messages.success(request, _("Team created!"))
-
-    user.check_trust_badge()
-    subscription = UserSubscription.objects.filter(user=user, end_date__gt=timezone.now()).first()
-    return render(request, 'core/profile.html', {
-        'profile_user': user, 'rentals': rentals, 'packages': packages, 'earnings': earnings, 'analytics': analytics,
-        'teams': teams, 'subscription': subscription
-    })
-
-def login_view(request):
-    if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            return redirect('dashboard')
-        messages.error(request, _("Invalid credentials"))
-    return render(request, 'core/login.html')
-
-def logout_view(request):
-    logout(request)
-    return redirect('login')
-
-def register_view(request):
-    if request.method == 'POST':
-        form = UserRegisterForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.set_password(form.cleaned_data['password'])
-            user.user_type = request.POST.get('user_type', 'individual')
-            user.save()
-            login(request, user)
-            return redirect('dashboard')
-    else:
-        form = UserRegisterForm()
-    return render(request, 'core/register.html', {'form': form})
+            UserAction.objects.create(user=request.user, action='review', details={'item': item.title, 'rating': review.rating})
+            award_points(request.user, 20, 'review')
+            messages.success(request, _("Review submitted successfully!"))
+            return redirect('listing', pk=item_id)
+    return redirect('listing', pk=item_id)
 
 @login_required
-def subscribe(request):
-    plans = SubscriptionPlan.objects.all()
+def chat(request, user_id):
+    other_user = get_object_or_404(User, id=user_id)
+    messages_list = Message.objects.filter(
+        Q(sender=request.user, receiver=other_user) | Q(sender=other_user, receiver=request.user)
+    ).order_by('timestamp')
     if request.method == 'POST':
-        plan_id = request.POST.get('plan_id')
-        plan = get_object_or_404(SubscriptionPlan, id=plan_id)
-        end_date = timezone.now() + timezone.timedelta(days=30)
-        UserSubscription.objects.create(user=request.user, plan=plan, end_date=end_date)
-        Payment.objects.create(payer=request.user, amount=plan.price, instructions=f"Pay ${plan.price} for {plan.name}")
-        messages.success(request, _("Subscription activated! Follow payment instructions."))
-        return redirect('profile', username=request.user.username)
-    return render(request, 'core/subscribe.html', {'plans': plans})
+        content = request.POST.get('content', '').strip()
+        if content:
+            Message.objects.create(sender=request.user, receiver=other_user, content=content)
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'chat_{other_user.id}',
+                {'type': 'chat_message', 'message': {'sender': request.user.username, 'content': content, 'timestamp': datetime.now().isoformat()}}
+            )
+            return redirect('chat', user_id=user_id)
+    Message.objects.filter(receiver=request.user, sender=other_user, read=False).update(read=True)
+    return render(request, 'chat.html', {'other_user': other_user, 'messages': messages_list})
 
-@login_required
-def admin_dashboard(request):
-    if not (request.user.is_superuser or request.user.is_custom_admin):
-        return HttpResponseForbidden()
-    perms = request.user.admin_permissions if request.user.is_custom_admin else {'all': True}
-    context = {}
-    if perms.get('all', False) or perms.get('users', False):
-        context['users'] = User.objects.all()
-    if perms.get('all', False) or perms.get('rentals', False):
-        context['rentals'] = Rental.objects.all()
-    if perms.get('all', False) or perms.get('payments', False):
-        context['payments'] = Payment.objects.all()
-    if perms.get('all', False) or perms.get('disputes', False):
-        context['disputes'] = Dispute.objects.all()
-    if perms.get('all', False) or perms.get('contracts', False):
-        context['contracts'] = Contract.objects.all()
-    if perms.get('all', False) or perms.get('reports', False):
-        context['reports'] = Report.objects.all()
-    if request.method == 'POST':
-        if 'permissions' in request.POST and request.user.is_superuser:
-            user_id = request.POST.get('user_id')
-            permissions = json.loads(request.POST.get('permissions', '{}'))
-            user = get_object_or_404(User, id=user_id)
-            user.is_custom_admin = True
-            user.admin_permissions = permissions
-            user.save()
-            messages.success(request, f"Updated admin permissions for {user.username}")
-        elif 'verify_payment' in request.POST and (perms.get('all', False) or perms.get('payments', False)):
-            payment_id = request.POST.get('payment_id')
-            payment = get_object_or_404(Payment, id=payment_id)
-            payment.status = 'approved'
-            payment.save()
-            messages.success(request, f"Payment {payment.Transaction_id} approved")
-        elif 'verify_user' in request.POST and (perms.get('all', False) or perms.get('users', False)):
-            user_id = request.POST.get('user_id')
-            user = get_object_or_404(User, id=user_id)
-            user.is_verified = True
-            user.save()
-            messages.success(request, f"User {user.username} verified")
-        elif 'verify_rental' in request.POST and (perms.get('all', False) or perms.get('rentals', False)):
-            rental_id = request.POST.get('rental_id')
-            rental = get_object_or_404(Rental, id=rental_id)
-            rental.is_verified = True
-            rental.save()
-            messages.success(request, f"Rental {rental.title} verified")
-        elif 'resolve_dispute' in request.POST and (perms.get('all', False) or perms.get('disputes', False)):
-            dispute_id = request.POST.get('dispute_id')
-            dispute = get_object_or_404(Dispute, id=dispute_id)
-            dispute.status = 'resolved'
-            dispute.save()
-            messages.success(request, f"Dispute resolved")
-        elif 'resolve_report' in request.POST and (perms.get('all', False) or perms.get('reports', False)):
-            report_id = request.POST.get('report_id')
-            report = get_object_or_404(Report, id=report_id)
-            report.resolved = True
-            report.save()
-            messages.success(request, f"Report resolved")
-    return render(request, 'core/admin_dashboard.html', context)
+class DashboardView(LoginRequiredMixin, DetailView):
+    model = User
+    template_name = 'dashboard.html'
+    context_object_name = 'user'
 
-def custom_404(request, exception):
-    return render(request, 'core/404.html', status=404)
+    def get_object(self):
+        return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        listings = self.request.user.rentalitem_set.all()
+        context['total_views'] = sum(l.views for l in listings)
+        context['total_bookings'] = Reservation.objects.filter(item__owner=self.request.user).count()
+        context['average_rating'] = sum(l.rating for l in listings if l.review_count) / max(1, listings.filter(review_count__gt=0).count())
+        context['recent_actions'] = UserAction.objects.filter(user=self.request.user).order_by('-timestamp')[:10]
+        return context

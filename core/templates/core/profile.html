@@ -1,77 +1,75 @@
-{% extends 'core/base.html' %}
-{% load i18n %}
-{% block title %}{% trans "Profile" %} - {{ profile_user.username }}{% endblock %}
+{% extends 'base.html' %}
+{% load static i18n %}
+{% block title %}{% trans "Profile" %} - {{ profile.username }}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/profile.css' %}">
+{% endblock %}
 {% block content %}
-    <h1 class="text-2xl font-bold mb-6">{% trans "Profile" %}</h1>
-    <div class="card">
-        <div class="flex items-center mb-4">
-            {% if profile_user.profile_picture %}
-                <img src="{{ profile_user.profile_picture.url }}" class="w-24 h-24 rounded-full mr-4">
-            {% endif %}
-            <div>
-                <h2 class="text-xl font-semibold">{{ profile_user.username }} {% if profile_user.trust_badge %}<span class="badge green"></span>{% endif %}{% if profile_user.badge_color %}<span class="badge {{ profile_user.badge_color }}"></span>{% endif %}</h2>
-                <p>{{ profile_user.bio }}</p>
-                <p>{% trans "Type" %}: {{ profile_user.user_type }}</p>
-                <p>{% trans "Verified" %}: {{ profile_user.is_verified|yesno }}</p>
-                <p>{% trans "Premium" %}: {{ profile_user.is_premium|yesno }}</p>
-                <p>{% trans "Earnings" %}: ${{ earnings }}</p>
-                <p>{% trans "Followers" %}: {{ profile_user.followers.count }} | {% trans "Following" %}: {{ profile_user.following.count }}</p>
-            </div>
-        </div>
-        {% if user == profile_user %}
-            <form method="post" enctype="multipart/form-data" class="mb-4">
-                {% csrf_token %}
-                <label>{% trans "Verification Document" %}</label>
-                <input type="file" name="verification_document" class="border p-2 rounded mb-4">
-                <button type="submit" class="button">{% trans "Upload" %}</button>
-            </form>
-            <form method="post" class="mb-4">
-                {% csrf_token %}
-                <button type="submit" name="create_team" class="button">{% trans "Create Team" %}</button>
-                <input type="text" name="team_name" placeholder="{% trans 'Team Name' %}" class="border p-2 rounded" required>
-            </form>
-            {% if subscription %}
-                <p>{% trans "Subscription" %}: {{ subscription.plan.name }} (Ends: {{ subscription.end_date }})</p>
-            {% else %}
-                <a href="{% url 'subscribe' %}" class="button">{% trans "Get Premium" %}</a>
-            {% endif %}
-        {% endif %}
-        {% if user.is_authenticated and user != profile_user %}
-            <form method="post" class="inline">
-                {% csrf_token %}
-                <button type="submit" name="follow" class="button">{% if user in profile_user.followers.all %}{% trans "Unfollow" %}{% else %}{% trans "Follow" %}{% endif %}</button>
-            </form>
-        {% endif %}
-        <h3 class="text-xl mt-6">{% trans "Analytics" %}</h3>
-        <p>{% trans "Total Views" %}: {{ analytics.views }}</p>
-        <p>{% trans "Average Rating" %}: {{ analytics.avg_rating|floatformat:1 }}</p>
-        <h3 class="text-xl mt-6">{% trans "Rentals" %}</h3>
-        {% for rental in rentals %}
-            <div class="border-b py-2">
-                <p>{{ rental.title }} - ${{ rental.price }}</p>
-                {% if user == profile_user %}
-                    <form method="post" class="inline">
-                        {% csrf_token %}
-                        <input type="hidden" name="rental_id" value="{{ rental.id }}">
-                        <button type="submit" name="boost" class="button">{% trans "Boost" %}</button>
-                        <button type="submit" name="feature" class="button ml-2">{% trans "Feature" %}</button>
-                    </form>
+    <div class="bg-white p-8 rounded-xl shadow-lg dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+        <div class="flex items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-200">
+                {{ profile.username }}
+                {% if profile.profile.verified %}
+                    <svg class="checkmark inline-block w-6 h-6 {% if profile.profile.tier == 'green' %}text-green-500{% elif profile.profile.tier == 'blue' %}text-blue-500{% else %}text-yellow-500{% endif %}" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
                 {% endif %}
-            </div>
-        {% endfor %}
-        <h3 class="text-xl mt-6">{% trans "Service Packages" %}</h3>
-        {% for package in packages %}
-            <div class="border-b py-2">
-                <p>{{ package.title }} - ${{ package.price }}</p>
-            </div>
-        {% endfor %}
-        <h3 class="text-xl mt-6">{% trans "Teams" %}</h3>
-        {% for team in teams %}
-            <div class="border-b py-2">
-                <p>{{ team.name }}</p>
-                <a href="{% url 'team_manage' team.id %}" class="text-blue-500">{% trans "Manage" %}</a>
-                <a href="{% url 'team_history' team.id %}" class="text-blue-500 ml-2">{% trans "History" %}</a>
-            </div>
-        {% endfor %}
+            </h1>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400"><strong>{% trans "Tier:" %}</strong> {{ profile.profile.tier|title }}{% if profile.profile.trusted %} <span class="text-green-600 dark:text-green-400">{% trans "(Trusted)" %}</span>{% endif %}</p>
+        <p class="text-gray-600 dark:text-gray-400"><strong>{% trans "Points:" %}</strong> {{ profile.profile.points }}</p>
+        <p class="text-gray-600 dark:text-gray-400"><strong>{% trans "Location:" %}</strong> {{ profile.profile.location|default:"Not set" }}</p>
+        <p class="text-gray-600 mt-2 dark:text-gray-400">{{ profile.profile.bio|default:"Tell the world about yourself!" }}</p>
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Your Badges" %}</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+            {% for ub in badges %}
+                <div class="bg-gray-100 p-4 rounded-lg shadow-sm dark:bg-gray-700 text-center">
+                    <p class="font-medium text-teal-600 dark:text-teal-400">{{ ub.badge.name }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ ub.badge.description }}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No badges yet. Earn points to unlock!" %}</p>
+            {% endfor %}
+        </div>
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Your Listings" %}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            {% for item in listings %}
+                <div class="bg-gray-100 p-4 rounded-lg shadow-sm dark:bg-gray-700">
+                    <a href="{% url 'listing' item.id %}" class="text-teal-600 hover:underline dark:text-teal-400 dark:hover:text-teal-300 font-medium">{{ item.title }}</a>
+                    <p class="text-gray-600 dark:text-gray-400">{{ item.base_price }} {{ item.base_currency }}{% if item.type == 'service' %}/hr{% endif %}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No listings yet." %}</p>
+            {% endfor %}
+        </div>
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Your Reservations" %}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            {% for reservation in reservations %}
+                <div class="bg-gray-100 p-4 rounded-lg shadow-sm dark:bg-gray-700">
+                    <p class="font-medium text-teal-600 dark:text-teal-400">{{ reservation.item.title }}</p>
+                    <p class="text-gray-600 dark:text-gray-400">{{ reservation.total_cost }} {{ reservation.item.base_currency }}</p>
+                    <p class="text-sm {% if reservation.status == 'confirmed' %}text-green-600 dark:text-green-400{% elif reservation.status == 'pending' %}text-yellow-600 dark:text-yellow-400{% else %}text-gray-500 dark:text-gray-400{% endif %}">{{ reservation.status|title }}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No reservations yet." %}</p>
+            {% endfor %}
+        </div>
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Your Recent Posts" %}</h2>
+        <div class="space-y-4">
+            {% for post in posts %}
+                <div class="bg-gray-100 p-4 rounded-lg shadow-sm dark:bg-gray-700">
+                    {% if post.media %}
+                        {% if post.media.url|lower|slice:-4: == '.mp4' %}
+                            <video src="{{ post.media.url }}" controls class="w-full h-48 object-cover rounded"></video>
+                        {% else %}
+                            <img src="{{ post.media.url }}" alt="{{ post.caption }}" class="w-full h-48 object-cover rounded">
+                        {% endif %}
+                    {% endif %}
+                    <p class="mt-2 text-gray-600 dark:text-gray-400">{{ post.caption }}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No posts yet." %}</p>
+            {% endfor %}
+        </div>
     </div>
 {% endblock %}

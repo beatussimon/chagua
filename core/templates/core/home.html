@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+{% block title %}{% trans "Home" %}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/home.css' %}">
+{% endblock %}
+{% block content %}
+    <div class="parallax-bg bg-teal-100 dark:bg-teal-900 h-64 flex items-center justify-center text-center text-4xl font-extrabold text-teal-700 dark:text-teal-300 tracking-tight mb-8">
+        {% trans "Welcome to Chagua" %}
+    </div>
+    <div class="mb-8">
+        <form action="{% url 'search' %}" method="get" class="flex space-x-4">
+            <input type="text" name="q" placeholder="{% trans 'Search items or services...' %}" class="form-input w-full max-w-md">
+            <button type="submit" class="btn-rent">{% trans "Search" %}</button>
+        </form>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 space-y-6">
+            <h2 class="text-2xl font-semibold text-gray-700 dark:text-gray-300">{% trans "Social Feed" %}</h2>
+            {% for post in posts %}
+                <div class="post-card bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+                    {% if post.media %}
+                        {% if post.media.url|lower|slice:-4: == '.mp4' %}
+                            <video src="{{ post.media.url }}" controls class="w-full h-64 object-cover rounded-lg"></video>
+                        {% else %}
+                            <img src="{{ post.media.url }}" alt="{{ post.caption }}" class="w-full h-64 object-cover rounded-lg">
+                        {% endif %}
+                    {% endif %}
+                    <p class="mt-4 text-gray-600 dark:text-gray-400">{{ post.caption }}</p>
+                    <div class="mt-3 flex items-center space-x-4">
+                        <button hx-post="{% url 'like_post' post.id %}" hx-target="#likes-{{ post.id }}" class="flex items-center text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-600 transition">
+                            <svg class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
+                            <span id="likes-{{ post.id }}">{{ post.likes.count }}</span>
+                        </button>
+                        <form hx-post="{% url 'add_comment' post.id %}" hx-target="#comments-{{ post.id }}" hx-swap="beforeend" class="flex items-center">
+                            <input type="text" name="comment" placeholder="{% trans 'Add a comment...' %}" class="form-input w-64 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                            <button type="submit" class="ml-2 text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-600">{% trans "Post" %}</button>
+                        </form>
+                    </div>
+                    <div id="comments-{{ post.id }}" class="mt-2 space-y-1">
+                        {% for comment in post.comments %}
+                            <p class="text-sm text-gray-500 dark:text-gray-400"><strong>{{ comment.user }}</strong>: {{ comment.text }} <span class="text-xs">({{ comment.date|slice:":10" }})</span></p>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No posts yet. Be the first!" %}</p>
+            {% endfor %}
+            <div class="mt-6 flex justify-between">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="text-teal-600 hover:underline dark:text-teal-400">{% trans "Previous" %}</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="text-teal-600 hover:underline dark:text-teal-400 ml-auto">{% trans "Next" %}</a>
+                {% endif %}
+            </div>
+            {% if user.is_authenticated and recommended %}
+                <h2 class="text-2xl font-semibold mt-8 text-gray-700 dark:text-gray-300">{% trans "Recommended for You" %}</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for item in recommended %}
+                        <div class="item-card bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+                            <a href="{% url 'listing' item.id %}" class="text-teal-600 hover:underline dark:text-teal-400 dark:hover:text-teal-300 font-medium">{{ item.title }}</a>
+                            <p class="text-gray-600 dark:text-gray-400">{{ item.base_price }} {{ item.base_currency }}{% if item.type == 'service' %}/hr{% endif %} (~{{ item.base_price|floatformat:2|multiply:EXCHANGE_RATES[item.base_currency][user_currency] }} {{ user_currency }})</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="space-y-6">
+            <div>
+                <h2 class="text-2xl font-semibold text-gray-700 dark:text-gray-300">{% trans "Top Items" %}</h2>
+                {% for item in items %}
+                    <div class="item-card bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+                        <a href="{% url 'listing' item.id %}" class="text-teal-600 hover:underline dark:text-teal-400 dark:hover:text-teal-300 font-medium">{{ item.title }}</a>
+                        <p class="text-gray-600 dark:text-gray-400">{{ item.base_price }} {{ item.base_currency }} (~{{ item.base_price|floatformat:2|multiply:EXCHANGE_RATES[item.base_currency][user_currency] }} {{ user_currency }})</p>
+                    </div>
+                {% empty %}
+                    <p class="text-gray-500 dark:text-gray-400">{% trans "No items available." %}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <h2 class="text-2xl font-semibold text-gray-700 dark:text-gray-300">{% trans "Top Services" %}</h2>
+                {% for service in services %}
+                    <div class="item-card bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+                        <a href="{% url 'listing' service.id %}" class="text-teal-600 hover:underline dark:text-teal-400 dark:hover:text-teal-300 font-medium">{{ service.title }}</a>
+                        <p class="text-gray-600 dark:text-gray-400">{{ service.base_price }} {{ service.base_currency }}/hr (~{{ service.base_price|floatformat:2|multiply:EXCHANGE_RATES[service.base_currency][user_currency] }} {{ user_currency }})</p>
+                    </div>
+                {% empty %}
+                    <p class="text-gray-500 dark:text-gray-400">{% trans "No services available." %}</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endblock %}

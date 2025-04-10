@@ -1,144 +1,48 @@
-{% load i18n static %}
 <!DOCTYPE html>
-<html lang="{{ LANGUAGE_CODE|default:'en' }}" class="h-full">
+<html lang="{% if request.LANGUAGE_CODE %}{{ request.LANGUAGE_CODE }}{% else %}en{% endif %}" class="dark" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% trans "Chagua" %}{% endblock %} - Chagua</title>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Chagua - {% block title %}{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
-    {% block extra_head %}{% endblock %}
+    <link rel="stylesheet" href="{% static 'core/css/base.css' %}">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    {% block css %}{% endblock %}
 </head>
-<body class="flex flex-col min-h-screen" data-username="{{ user.username|default:'' }}" {% block body_data %}{% endblock %}>
-    {% csrf_token %} {# For AJAX POSTs #}
-
-    <header class="navbar sticky top-0 z-40 shadow-sm px-4 py-2 md:py-3" role="banner">
+<body class="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200 transition-colors duration-300">
+    <nav class="bg-teal-700 text-white p-4 sticky top-0 z-20 shadow-lg dark:bg-teal-800">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="{% url 'dashboard' %}" class="text-2xl md:text-3xl font-bold text-primary-accent" aria-label="Chagua Home">Chagua</a>
-
-            <div class="search-bar hidden md:block mx-4 flex-grow max-w-xl">
-                <form method="get" action="{% url 'dashboard' %}" class="relative">
-                    <input type="search" name="q" placeholder="{% trans 'Search rentals...' %}" value="{{ request.GET.q }}" class="w-full p-2 border rounded-lg" aria-label="Search">
-                </form>
-            </div>
-
-            <button id="hamburger-toggle" class="hamburger md:hidden focus:outline-none p-2 -mr-2" aria-label="Toggle Menu" aria-expanded="false" aria-controls="hamburger-menu">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-            </button>
-
-            <nav class="nav-menu hidden md:flex items-center space-x-3 lg:space-x-5" role="navigation">
-                <a href="{% url 'dashboard' %}" class="px-2 py-1" data-tooltip="Home">{% trans "Home" %}</a>
-                <a href="{% url 'feedback' %}" class="px-2 py-1" data-tooltip="Feedback">{% trans "Feedback" %}</a>
-                <a href="#" class="px-2 py-1" data-tooltip="Contact Us">{% trans "Contact" %}</a>
-
+            <a href="{% url 'home' %}" class="text-3xl font-extrabold tracking-tight hover:text-teal-200 transition duration-200">Chagua</a>
+            <div class="flex items-center space-x-6">
+                <a href="{% url 'search' %}" class="hover:text-teal-200 transition duration-200">{% trans "Search" %}</a>
                 {% if user.is_authenticated %}
-                    <a href="{% url 'messaging' %}" class="px-2 py-1 relative" data-tooltip="Messages">
-                        {% trans "Messages" %}
-                        {% with unread_notifications=notifications.count %} {# Assumes notifications passed in context #}
-                            {% if unread_notifications > 0 %}
-                                <span class="absolute -top-1 -right-1 block h-4 w-4 text-xs flex items-center justify-center rounded-full ring-1 ring-white bg-red-500 text-white font-bold">{{ unread_notifications }}</span>
-                            {% endif %}
-                        {% endwith %}
-                    </a>
-                    <div class="dropdown relative">
-                        <button class="flex items-center focus:outline-none p-1" aria-haspopup="true" aria-label="User Menu">
-                             {% if user.profile_picture %} <img src="{{ user.profile_picture.url }}" alt="" class="w-8 h-8 rounded-full border object-cover">
-                             {% else %} <span class="w-8 h-8 rounded-full bg-gray-500 text-white flex items-center justify-center border text-sm font-semibold">{{ user.username.0|upper }}</span>
-                             {% endif %}
-                        </button>
-                        <div class="dropdown-content absolute hidden mt-1 right-0 w-48 rounded-md shadow-lg py-1">
-                             <a href="{% url 'profile' user.username %}" class="block px-4 py-2 text-sm">{% trans "Profile" %}</a>
-                             <a href="{% url 'rental_create' %}" class="block px-4 py-2 text-sm">{% trans "Post Rental" %}</a>
-                             {% if user.is_superuser or user.is_custom_admin %} <a href="{% url 'admin_dashboard' %}" class="block px-4 py-2 text-sm">{% trans "Admin" %}</a>{% endif %}
-                             <hr class="my-1 border-gray-200 dark:border-gray-600">
-                             <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-100">{% trans "Logout" %}</a>
-                        </div>
-                    </div>
-                    <button onclick="toggleTheme()" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none" data-tooltip="Toggle Theme" aria-label="Toggle Theme">🌙</button>
+                    <a href="{% url 'profile' %}" class="hover:text-teal-200 transition duration-200">{% trans "Profile" %}</a>
+                    <a href="{% url 'dashboard' %}" class="hover:text-teal-200 transition duration-200">{% trans "Dashboard" %}</a>
+                    <a href="{% url 'notifications' %}" class="hover:text-teal-200 transition duration-200">{% trans "Notifications" %}</a>
+                    <a href="{% url 'add_listing' %}" class="hover:text-teal-200 transition duration-200">{% trans "Add Listing" %}</a>
+                    <a href="{% url 'add_post' %}" class="hover:text-teal-200 transition duration-200">{% trans "Add Post" %}</a>
+                    <a href="{% url 'logout' %}" class="hover:text-teal-200 transition duration-200">{% trans "Logout" %}</a>
                 {% else %}
-                    <a href="{% url 'login' %}" class="px-2 py-1" data-tooltip="Login">{% trans "Login" %}</a>
-                    <a href="{% url 'register' %}" class="button text-sm" data-tooltip="Register">{% trans "Sign Up" %}</a>
+                    <a href="{% url 'login' %}" class="hover:text-teal-200 transition duration-200">{% trans "Login" %}</a>
+                    <a href="{% url 'signup' %}" class="hover:text-teal-200 transition duration-200">{% trans "Signup" %}</a>
                 {% endif %}
-            </nav>
+                <select onchange="window.location.href=this.value" class="bg-teal-600 text-white p-2 rounded-lg dark:bg-teal-700">
+                    <option value="/i18n/setlang/?lang=en" {% if request.LANGUAGE_CODE == 'en' %}selected{% endif %}>EN</option>
+                    <option value="/i18n/setlang/?lang=sw" {% if request.LANGUAGE_CODE == 'sw' %}selected{% endif %}>SW</option>
+                </select>
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-teal-600 transition duration-200">
+                    <svg id="sun-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                    <svg id="moon-icon" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+                </button>
+            </div>
         </div>
-
-         <div class="search-bar md:hidden p-4 border-t border-gray-200 dark:border-gray-700">
-             <form method="get" action="{% url 'dashboard' %}" class="relative">
-                 <input type="search" name="q" placeholder="{% trans 'Search rentals...' %}" value="{{ request.GET.q }}" class="w-full p-2 border rounded-lg" aria-label="Search rentals">
-             </form>
-         </div>
-    </header>
-
-    <div id="hamburger-menu" class="fixed inset-0 z-50 md:hidden" inert> {# Starts inert #}
-         <div class="menu-header">
-            <span class="text-xl font-bold">{% trans "Menu" %}</span>
-            <button id="close-hamburger" class="focus:outline-none p-1 -mr-1" aria-label="Close Menu">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-        </div>
-        <nav class="menu-nav flex-grow overflow-y-auto p-4" role="navigation">
-            {% if user.is_authenticated %}
-                <div class="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                     <a href="{% url 'profile' user.username %}" class="flex items-center space-x-3 text-lg font-semibold hover:text-primary-accent">
-                         {% if user.profile_picture %} <img src="{{ user.profile_picture.url }}" alt="" class="w-10 h-10 rounded-full">
-                         {% else %} <span class="w-10 h-10 rounded-full bg-gray-500 text-white flex items-center justify-center">{{ user.username.0|upper }}</span>
-                         {% endif %}
-                         <span>{{ user.username }}</span>
-                     </a>
-                </div>
-                <h4 class="menu-section-header">{% trans "My Chagua" %}</h4>
-                <div class="space-y-1">
-                    <a href="{% url 'messaging' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Messages" %}</a>
-                    <a href="{% url 'profile' user.username %}?section=rentals" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "My Rentals" %}</a>
-                    <a href="{% url 'subscribe' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Subscription" %}</a>
-                    </div>
-                 {% if user.is_superuser or user.is_custom_admin %}
-                     <h4 class="menu-section-header">{% trans "Admin" %}</h4>
-                     <a href="{% url 'admin_dashboard' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Admin Dashboard" %}</a>
-                     <a href="/admin/" target="_blank" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Django Admin" %}</a>
-                 {% endif %}
-                 <h4 class="menu-section-header">{% trans "Create" %}</h4>
-                 <div class="space-y-1">
-                     <a href="{% url 'rental_create' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Post Rental" %}</a>
-                     <a href="{% url 'service_package_create' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Create Package" %}</a>
-                     <a href="{% url 'create_group' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Create Group" %}</a>
-                 </div>
-            {% endif %}
-
-             <h4 class="menu-section-header">{% trans "Explore" %}</h4>
-             <div class="space-y-1">
-                 <a href="{% url 'dashboard' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Home" %}</a>
-                 <a href="{% url 'feedback' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Feedback & FAQ" %}</a>
-                 <a href="#" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Contact Us" %}</a>
-             </div>
-
-            <hr class="menu-divider my-4">
-
-            {% if user.is_authenticated %}
-                <a href="{% url 'logout' %}" class="block text-lg p-2 rounded text-red-500 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900">{% trans "Logout" %}</a>
-            {% else %}
-                <a href="{% url 'login' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Login" %}</a>
-                <a href="{% url 'register' %}" class="block text-lg p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">{% trans "Register" %}</a>
-            {% endif %}
-        </nav>
-        <div class="menu-footer p-4 border-t">
-            <button onclick="toggleTheme()" class="button w-full">{% trans "Toggle Light/Dark Theme" %}</button>
-        </div>
-    </div>
-
-    <div class="secondary-nav flex justify-center items-center text-sm py-2 space-x-6 border-b">
-         <a href="{% url 'feedback' %}#faq" class="hover:text-primary-accent">{% trans "FAQ" %}</a>
-         <a href="{% url 'feedback' %}#reviews" class="hover:text-primary-accent">{% trans "Feedback" %}</a>
-         <a href="#" class="hover:text-primary-accent">{% trans "Contact Us" %}</a>
-     </div>
-
-    <main class="flex-grow container mx-auto p-4 md:p-6" id="content-wrapper" role="main">
+    </nav>
+    <main class="container mx-auto p-6 relative" id="parallax-container">
         {% if messages %}
-            <div class="mb-6 space-y-2" role="alert">
+            <div class="mb-6 space-y-2">
                 {% for message in messages %}
-                    <div class="p-4 rounded {% if message.tags == 'success' %}bg-green-100 text-green-800 border border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-800 border border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-700{% else %}bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700{% endif %}">
+                    <div class="p-4 rounded-lg bg-opacity-90 backdrop-blur-md {% if message.tags == 'success' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200{% endif %} shadow-md transition duration-300">
                         {{ message }}
                     </div>
                 {% endfor %}
@@ -146,16 +50,15 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
-
-    <footer class="text-center p-4 text-sm border-t mt-auto">
-        {% trans "© 2025 Chagua. All rights reserved." %}
+    <footer class="bg-teal-700 text-white p-4 mt-8 dark:bg-teal-800">
+        <div class="container mx-auto text-center">
+            © 2025 Chagua. {% trans "All rights reserved." %}
+        </div>
     </footer>
-
-    {% block modals %}{% endblock %}
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
-    <script src="{% static 'js/ui.js' %}"></script>
-    {% block extra_scripts %}{% endblock %}
+    <script src="{% static 'core/js/theme.js' %}"></script>
+    <script src="{% static 'core/js/offline.js' %}"></script>
+    <script src="{% static 'core/js/parallax.js' %}"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.6" integrity="sha384-FhXw7b6AlE/jyjlZH5iHa/tTe9EpJ1Y55RjcgPbjeWMskSxZt1v9qkxLJWNJaGni" crossorigin="anonymous"></script>
+    {% block js %}{% endblock %}
 </body>
 </html>

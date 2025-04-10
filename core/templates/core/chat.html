@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+{% block title %}{% trans "Chat with" %} {{ other_user.username }}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/chat.css' %}">
+{% endblock %}
+{% block content %}
+    <div class="bg-white p-8 rounded-xl shadow-lg dark:bg-gray-800 bg-opacity-80 backdrop-blur-md max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-200">{% trans "Chat with" %} {{ other_user.username }}</h1>
+        <div id="chat-messages" class="space-y-4 h-96 overflow-y-auto mb-4 p-4 rounded-lg bg-gray-100 dark:bg-gray-700 bg-opacity-80 backdrop-blur-md">
+            {% for message in messages %}
+                <div class="{% if message.sender == user %}text-right{% else %}text-left{% endif %}">
+                    <p class="inline-block p-3 rounded-lg {% if message.sender == user %}bg-teal-600 text-white{% else %}bg-gray-200 dark:bg-gray-600 dark:text-gray-200{% endif %} shadow-sm">
+                        {{ message.content }}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ message.timestamp|date:"F d, Y H:i" }}</p>
+                </div>
+            {% endfor %}
+        </div>
+        <form method="post" hx-post="{% url 'chat' other_user.id %}" hx-target="#chat-messages" hx-swap="beforeend" class="flex space-x-2">
+            {% csrf_token %}
+            <input type="text" name="content" class="form-input flex-grow dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" placeholder="{% trans 'Type a message...' %}" required>
+            <button type="submit" class="btn-rent bg-gradient-to-r from-teal-600 to-teal-400">{% trans "Send" %}</button>
+        </form>
+    </div>
+{% endblock %}
+{% block js %}
+    <script src="{% static 'core/js/chat.js' %}"></script>
+{% endblock %}

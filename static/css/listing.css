@@ -1,0 +1,3 @@
+.btn-rent {
+    @apply bg-gradient-to-r from-teal-600 to-teal-400;
+}

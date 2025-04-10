@@ -1,14 +1,17 @@
-{% extends 'core/base.html' %}
-{% load i18n %}
+{% extends 'base.html' %}
+{% load static i18n %}
 {% block title %}{% trans "Login" %}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/signup.css' %}">
+{% endblock %}
 {% block content %}
-    <h1 class="text-2xl font-bold mb-6">{% trans "Login" %}</h1>
-    <div class="card max-w-md mx-auto">
-        <form method="post">
+    <div class="bg-white p-8 rounded-xl shadow-lg dark:bg-gray-800 bg-opacity-80 backdrop-blur-md max-w-md mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-200">{% trans "Login" %}</h1>
+        <form method="post" class="space-y-4">
             {% csrf_token %}
-            <input type="text" name="username" placeholder="{% trans 'Username' %}" class="border p-2 rounded w-full mb-2" aria-label="Username" required>
-            <input type="password" name="password" placeholder="{% trans 'Password' %}" class="border p-2 rounded w-full mb-2" aria-label="Password" required>
-            <button type="submit" class="button w-full">{% trans "Login" %}</button>
+            {{ form.as_p }}
+            <button type="submit" class="btn-rent w-full">{% trans "Login" %}</button>
         </form>
+        <p class="mt-4 text-gray-600 dark:text-gray-400">{% trans "Don't have an account?" %} <a href="{% url 'signup' %}" class="text-teal-600 hover:underline dark:text-teal-400">{% trans "Sign Up" %}</a></p>
     </div>
 {% endblock %}

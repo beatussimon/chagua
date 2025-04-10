@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static i18n %}
+{% block title %}{% trans "Book" %} {{ item.title }}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/booking.css' %}">
+{% endblock %}
+{% block content %}
+    <div class="bg-white p-8 rounded-xl shadow-lg dark:bg-gray-800 bg-opacity-80 backdrop-blur-md max-w-lg mx-auto">
+        {% if reservation %}
+            <h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-200">{% trans "Upload Payment Proof" %}</h1>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">{% trans "Total Cost:" %} {{ reservation.total_cost }} {{ reservation.item.base_currency }} (~{{ converted_cost|floatformat:2 }} {{ user_currency }})</p>
+            <form method="post" enctype="multipart/form-data" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="payment_proof" class="block text-gray-700 dark:text-gray-300 font-medium">{% trans "Payment Proof" %}</label>
+                    <input type="file" name="payment_proof" id="payment_proof" class="form-input" accept="image/*" required>
+                </div>
+                <button type="submit" class="btn-rent w-full">{% trans "Upload" %}</button>
+            </form>
+        {% else %}
+            <h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-200">{% trans "Book" %} {{ item.title }}</h1>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">{% trans "Price:" %} {{ item.base_price }} {{ item.base_currency }} (~{{ converted_price|floatformat:2 }} {{ user_currency }}) {% if item.type == 'service' %}/hr{% endif %}</p>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div>
+                        <label for="{{ field.id_for_label }}" class="block text-gray-700 dark:text-gray-300 font-medium">{{ field.label }}</label>
+                        {{ field }}
+                        {% for error in field.errors %}
+                            <p class="text-red-500 dark:text-red-400 text-sm">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                <button type="submit" class="btn-rent w-full">{% trans "Book Now" %}</button>
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}

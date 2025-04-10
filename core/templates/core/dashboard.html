@@ -1,136 +1,33 @@
-{% extends 'core/base.html' %}
-{% load i18n static %}
+{% extends 'base.html' %}
+{% load static i18n %}
 {% block title %}{% trans "Dashboard" %}{% endblock %}
+{% block css %}
+    <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+{% endblock %}
 {% block content %}
-    <div class="feed">
-        <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-            <h1 class="text-2xl font-bold">{% trans "Explore Rentals & Packages" %}</h1>
-            <div>
-                {% if user.is_authenticated %}
-                    {# Add other buttons like saved search if needed here #}
-                {% endif %}
-                <button id="filter-toggle-button" type="button" class="button text-sm inline-flex items-center" aria-expanded="false" aria-controls="filter-section">
-                    {% trans "Filters" %}
-                    <svg id="filter-arrow-down" class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    <svg id="filter-arrow-up" class="w-4 h-4 ml-1 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-                </button>
+    <div class="bg-white p-8 rounded-xl shadow-lg dark:bg-gray-800 bg-opacity-80 backdrop-blur-md">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-200">{% trans "Your Dashboard" %}</h1>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="p-6 rounded-lg bg-teal-100 dark:bg-teal-900 text-center transition duration-300 hover:shadow-lg hover:-translate-y-1 bg-opacity-80 backdrop-blur-md">
+                <p class="text-2xl font-semibold text-teal-700 dark:text-teal-300">{{ total_views }}</p>
+                <p class="text-gray-600 dark:text-gray-400">{% trans "Total Listing Views" %}</p>
+            </div>
+            <div class="p-6 rounded-lg bg-teal-100 dark:bg-teal-900 text-center transition duration-300 hover:shadow-lg hover:-translate-y-1 bg-opacity-80 backdrop-blur-md">
+                <p class="text-2xl font-semibold text-teal-700 dark:text-teal-300">{{ total_bookings }}</p>
+                <p class="text-gray-600 dark:text-gray-400">{% trans "Total Bookings" %}</p>
+            </div>
+            <div class="p-6 rounded-lg bg-teal-100 dark:bg-teal-900 text-center transition duration-300 hover:shadow-lg hover:-translate-y-1 bg-opacity-80 backdrop-blur-md">
+                <p class="text-2xl font-semibold text-teal-700 dark:text-teal-300">{{ average_rating|floatformat:1 }}</p>
+                <p class="text-gray-600 dark:text-gray-400">{% trans "Average Rating" %}</p>
             </div>
         </div>
-
-        <div id="filter-section" class="hidden mb-6 transition-all duration-300 ease-in-out overflow-hidden max-h-0 data-[open=true]:max-h-screen"> {# Use data attribute for state #}
-            <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm border dark:border-gray-600">
-                <form method="get" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label for="id_q" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Search Keywords" %}</label>
-                            <input type="text" name="q" id="id_q" value="{{ query }}" placeholder="{% trans 'e.g., camera, beach house...' %}" class="mt-1 border p-2 rounded w-full">
-                        </div>
-                        <div>
-                            <label for="id_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Category" %}</label>
-                            <select name="category" id="id_category" class="mt-1 border p-2 rounded w-full">
-                                <option value="">{% trans "All Categories" %}</option>
-                                {% for cat in categories %}
-                                    <option value="{{ cat.slug }}" {% if category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                         <div>
-                            <label for="id_price_min" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Min Price" %}</label>
-                            <input type="number" name="price_min" id="id_price_min" value="{{ price_min }}" placeholder="$" min="0" class="mt-1 border p-2 rounded w-full">
-                        </div>
-                         <div>
-                            <label for="id_price_max" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Max Price" %}</label>
-                            <input type="number" name="price_max" id="id_price_max" value="{{ price_max }}" placeholder="$" min="0" class="mt-1 border p-2 rounded w-full">
-                        </div>
-                         <div>
-                            <label for="id_city" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "City" %}</label>
-                            <input type="text" name="city" id="id_city" value="{{ city }}" placeholder="e.g., Dar es Salaam" class="mt-1 border p-2 rounded w-full">
-                        </div>
-                         <div>
-                            <label for="id_start_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Available From" %}</label>
-                            <input type="date" name="start_date" id="id_start_date" value="{{ start_date }}" class="mt-1 border p-2 rounded w-full">
-                        </div>
-                         <div>
-                            <label for="id_end_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Available To" %}</label>
-                            <input type="date" name="end_date" id="id_end_date" value="{{ end_date }}" class="mt-1 border p-2 rounded w-full">
-                        </div>
-                    </div>
-                    <div class="flex justify-end pt-4 border-t dark:border-gray-600">
-                        <a href="{% url 'dashboard' %}" class="button bg-gray-300 hover:bg-gray-400 text-black mr-2">{% trans "Clear Filters" %}</a>
-                        <button type="submit" class="button">{% trans "Apply Filters" %}</button>
-                    </div>
-                </form>
-                {% if user.is_authenticated %}
-                <form method="post" class="mt-4 border-t dark:border-gray-600 pt-4">
-                     {% csrf_token %}
-                     <label for="id_save_search" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{% trans "Save Current Search" %}</label>
-                     <div class="flex mt-1">
-                         <input type="text" name="name" id="id_save_search" placeholder="{% trans 'Name this search...' %}" class="border p-2 rounded-l w-full" required>
-                         <button type="submit" class="button rounded-l-none">{% trans "Save" %}</button>
-                     </div>
-                 </form>
-                {% endif %}
-            </div>
+        <h2 class="text-xl font-semibold mt-8 mb-4 text-gray-700 dark:text-gray-300">{% trans "Recent Activity" %}</h2>
+        <div class="space-y-3">
+            {% for action in recent_actions %}
+                <p class="text-gray-600 dark:text-gray-400">{{ action.action|title }} - {{ action.timestamp|date:"F d, Y H:i" }}</p>
+            {% empty %}
+                <p class="text-gray-500 dark:text-gray-400">{% trans "No recent activity." %}</p>
+            {% endfor %}
         </div>
-
-        {% if user.is_authenticated and saved_searches %}
-           <div class="mb-4 text-sm">
-               <span class="font-medium">{% trans "Saved Searches" %}:</span>
-               {% for search in saved_searches %}
-                   <a href="{% url 'dashboard' %}?{% for k, v in search.filters.items %}{{ k }}={{ v }}&{% endfor %}" class="text-blue-500 hover:underline ml-2">{{ search.name }}</a>
-               {% endfor %}
-           </div>
-        {% endif %}
-
-        {% if user.is_authenticated %}
-            <div class="mb-6">
-                <a href="{% url 'rental_create' %}" class="button" aria-label="Post a rental">{% trans "Post a Rental" %}</a>
-            </div>
-        {% endif %}
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-             {% for rental in page_obj %}
-                <div class="card flex flex-col"> {# Use flex column #}
-                    {# Display Media Carousel/Image Here #}
-                    {% if rental.media.all %}
-                    <a href="{% url 'rental_detail' rental.id %}">
-                         <img src="{{ rental.media.first.file.url }}" alt="{{ rental.title }}" class="w-full h-48 object-cover rounded-t-lg">
-                    </a>
-                    {% else %}
-                     <div class="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-t-lg flex items-center justify-center text-gray-400">{% trans "No Image" %}</div>
-                    {% endif %}
-
-                    <div class="p-4 flex-grow"> {# Add padding #}
-                        <h2 class="text-lg font-semibold mb-1"><a href="{% url 'rental_detail' rental.id %}" class="hover:text-primary-accent">{{ rental.title }}</a> {% if rental.is_verified %}<span class="badge green"></span>{% endif %}</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ rental.city }}, {{ rental.country }}</p>
-                        <p class="font-bold text-lg">${{ rental.price }} / {% trans "night" %}</p> {# Example per night #}
-                    </div>
-                    <div class="p-4 border-t dark:border-gray-600 flex justify-between items-center text-sm">
-                         <span class="text-gray-500">{{ rental.views }} {% trans "views" %}</span>
-                         <form action="{% url 'like_rental' rental.id %}" method="post" class="inline">
-                             {% csrf_token %}
-                             <button type="submit" class="text-button" aria-label="Like rental">{{ rental.likes.count }} ❤️</button>
-                         </form>
-                     </div>
-                 </div>
-             {% empty %}
-                <p class="col-span-full text-center text-gray-500">{% trans "No rentals found matching your criteria." %}</p>
-             {% endfor %}
-        </div>
-
-         <div class="mt-8 flex justify-center items-center space-x-2">
-             {% if page_obj.has_previous %}
-                 <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="button text-sm">{% trans "Previous" %}</a>
-             {% endif %}
-             <span class="text-sm text-gray-700 dark:text-gray-300">
-                 {% trans "Page" %} {{ page_obj.number }} {% trans "of" %} {{ page_obj.paginator.num_pages }}.
-             </span>
-             {% if page_obj.has_next %}
-                 <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" class="button text-sm">{% trans "Next" %}</a>
-             {% endif %}
-         </div>
-
-        {# Service Packages Section (Optional) #}
-        {# ... #}
     </div>
 {% endblock %}

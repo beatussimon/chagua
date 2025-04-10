@@ -1,0 +1,3 @@
+.form-input[type="datetime-local"] {
+    @apply bg-white dark:bg-gray-700;
+}

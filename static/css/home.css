@@ -1,0 +1,6 @@
+.post-card {
+    @apply p-6 rounded-lg shadow-md transition duration-300 hover:shadow-xl hover:-translate-y-1;
+}
+.item-card {
+    @apply p-4 rounded-lg shadow-sm transition duration-300 hover:shadow-md hover:-translate-y-1;
+}
